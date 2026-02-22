@@ -1,5 +1,5 @@
 # Introduction
-We are the StormsNGR team from Hungary, and we are competing in the 2026 WRO Future Engineers category. This is our third year after two very successful years of competition. You can find our documentation from 2024 [here](https://github.com/MoCsabi/WRO2024-FE-StormsNGR) (🥇) and from 2025 [here](https://github.com/MoCsabi/WRO2025-FE-StormsNGR) (🥉). We will be updating this repository with our progress, which will be documented in our new [Engineering Journal](/engineering_journal.xlsx).
+We are the StormsNGR team from Hungary, and we are competing in the 2026 WRO Future Engineers category. This is our third year after two very successful years of competition. You can find our documentation from 2024 [here](https://github.com/MoCsabi/WRO2024-FE-StormsNGR) (🥇) and from 2025 [here](https://github.com/MoCsabi/WRO2025-FE-StormsNGR) (🥉). We will be updating this repository with our progress, which will be documented in our new [Engineering Journal](/Engineering%20Journal.md).
 
 ## The team
 >Team members
@@ -28,6 +28,7 @@ Our solution is an autonomous car powered by a Raspberry Pi coded in Python, res
 # Table of contents
 
 ### [Our journey](/Our%20Journey.md)
+### [Engineering Journal](/Engineering%20Journal.md)
 ### [Ideas and principles](/Ideas_and_principles.md)
 ### [Hardware documentation](/schemes/README.md)
 ### [Software documentation](/src/README.md)

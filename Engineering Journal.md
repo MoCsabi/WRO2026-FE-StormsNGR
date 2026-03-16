@@ -11,3 +11,6 @@ A list of the different teams' documentation we reviewed with a short note of ou
 - Team ANTİ: Their robot is vastly different from ours. It's speed and form factor is outsanding, but it's not something we would attempt
 
 ## February
+This month was uneventful, mainly because the first few weeks of university took up most of our time.
+
+## March

@@ -14,3 +14,7 @@ A list of the different teams' documentation we reviewed with a short note of ou
 This month was uneventful, mainly because the first few weeks of university took up most of our time.
 
 ## March
+`03.13.:` We finally dusted off the robot for some  tests. It performed remarkably well out of the box, but of course we had to fine-tune some calibrations. During this fine-tuning however we  managed to short-circuit our ESP, completely frying it in the process. This was a valuable lesson as this isn't the first time we managed to kill an ESP, so we will make sure to bring backup ones to the competition. Luckily we managed to get it replaced pretty quickly.
+
+`03.25.:` RoboTech Challenge Day<br>
+We were invited to the National/Central European demo competition RoboTech, where among other categories they had a WRO Future Engineers competition. It was a great opportunity for us to practice on a foreign track in different conditions, and the robot did not dissappoint, managing to score full points after some calibrations.

@@ -18,3 +18,8 @@ This month was uneventful, mainly because the first few weeks of university took
 
 `03.25.:` RoboTech Challenge Day<br>
 We were invited to the National/Central European demo competition RoboTech, where among other categories they had a WRO Future Engineers competition. It was a great opportunity for us to practice on a foreign track in different conditions, and the robot did not dissappoint, managing to score full points after some calibrations.
+
+## April
+`04.17.:` We discussed possible improvements of the robot, such as the creation of a new PCB and it's new features. We also decided to implement a new obstacle challenge strategy to reduce our time by a significant amount.
+
+`04.28.:` We started work on creating the improved strategy. It will make the run much more complicated than before, and since simplicity and straight-forwardness is very important to us we had to make sure it remained clear and understandable. We made a [work-in-progress flowchart](strategy_WIP.svg), and started implementing parts of it. Whether we finish it for the nationals or not is not certain.

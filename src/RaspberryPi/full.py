@@ -54,7 +54,7 @@ TURNTARGET_MIDDLE=2
 TURNTARGET_OUTER_OBS=3
 TURNTARGET_OUTER=4
 TURN_RADIUS=12
-turnDists=[98, 74, 64, 54, 34] #94->98
+turnDists=[94, 74, 64, 54, 34] #94->98
 laneWallDists=[20, 40, 50, 60, 80]
 '''Indexed by lane (left/right). 0:left,..,4:right'''
 def angularToXy(angle:int, distance:int):
@@ -113,7 +113,7 @@ class Object:
         objEndRel=[self.objEnd[0]-self.relToAbsX,self.objEnd[1]-self.relToAbsY]
         return Object(objStartRel,objEndRel)
     
-CAMERA_ANGLE_OFFSET=-1.5 #how much (degrees) the camera is rotated to the left relative to the robot
+CAMERA_ANGLE_OFFSET=0 #how much (degrees) the camera is rotated to the left relative to the robot
 HORIZONTAL_FOV=53.1
 VERTICAL_FOV=41.49
 CAMERA_VERTICAL_TILT=9.5 #10.76
@@ -237,7 +237,7 @@ import time
 # distSensor=VL53L1X()
 # '''Laser distance sensor behind the robot'''
 
-TICKS_PER_CM=37.12*(1/3) #faster motor
+TICKS_PER_CM=14
 '''Convert internal ticks to CM. (Motor rotation is measured in ticks by the ESP)'''
 
 direction:int=1
@@ -784,7 +784,7 @@ def logLidar():
     # DISTANCE_MAP[90]=getTOF()
     lidarLogJSON["h0"]=heading0
     lidarLogJSON["heading"]=getHeading()
-    lidarLogJSON["Data"]=DISTANCE_MAP #TODO correct LIDAR_ANGLE_OFFSET somehow
+    lidarLogJSON["Data"]=DISTANCE_MAP[LIDAR_ANGLE_OFFSET:]+DISTANCE_MAP[:LIDAR_ANGLE_OFFSET]
     lidarLogJSON["T"]=time.time()
     lidarLogJSON["DOI"]=lidarDOI
     lidarLogJSON["Rect"]=lidarRects
@@ -963,7 +963,7 @@ def setLane(wallDirection, targetDistance, is_small=False, turnCorrection=0, alr
     log.debug("delta d0 %s"%(abs(targetDistance-d0)))
     if is_small:
         angle=30
-        correctionY=1
+        correctionY=1 #TODO too much?
     else:
         angle=40
         correctionY=0
@@ -1109,7 +1109,7 @@ def turnCorner(target, turnCorrection=0, detection_careful=False, cheat_arc=Fals
                 go(-20*direction)
                 waitAbsLidar(0,70)
                 go(0)
-            target_turn_dist=(40-TURN_RADIUS-4) if target==TURNTARGET_OUTER_OBS else (60-TURN_RADIUS-4)
+            target_turn_dist=(40-TURN_RADIUS-8) if target==TURNTARGET_OUTER_OBS else (60-TURN_RADIUS-4)
             waitAbsLidar(0,target_turn_dist)
             stop()
             arc(90*direction, backwards=True)
@@ -1119,7 +1119,7 @@ def turnCorner(target, turnCorrection=0, detection_careful=False, cheat_arc=Fals
         target_turn_dist=turnDists[int(target)]
         waitAbsLidar(0,target_turn_dist+30)
         setTempo(slowSpeed)
-        waitEnsureDist(target_turn_dist, 5)
+        waitEnsureDist(target_turn_dist, 4)
         if not cheat_arc:
             arc((90+turnCorrection)*direction)
         else:
@@ -1131,8 +1131,9 @@ def turnCorner(target, turnCorrection=0, detection_careful=False, cheat_arc=Fals
     heading0+=90*direction
     log.info("Turncorner over")
 
-def calcLaneFromObs(signColumn, signColor):
+def calcLaneFromObs(signColumn, signColor, wide_avoid=False):
     log.debug(f"calcLaneFromObs signColumn {signColumn}, signColor {signColor}")
+    if wide_avoid: return LANE_LEFT if signColor==GREEN else LANE_RIGHT
     if signColor==GREEN:
         return LANE_LEFT if signColumn==-1 else LANE_LEFT_OBS
     elif signColor==RED:
@@ -1516,7 +1517,7 @@ def waitEnsureDist(target_dist, allowed_deviation=0):
         stop()
         go(0)
     waitAbsLidar(0,target_dist)
-    log.info("EndureDist over")
+    log.info("EnsureDist over")
 
 REAR_LEFT_X=15
 REAR_LEFT_Y=8
@@ -1548,7 +1549,7 @@ def parkingManouver(firstSignColor):
     go(0)
 
     if direction==DIRECTION_RIGHT: waitLidarBehind(116,decreasing=False)
-    else: waitAbsLidar(0,133.5)
+    else: waitAbsLidar(0,129)
     
     arc(90*direction, steep=True)
     if direction==DIRECTION_LEFT: heading0-=180 #the robot parkink is 0°
@@ -1558,7 +1559,7 @@ def parkingManouver(firstSignColor):
     waitAbsLidar(90,20) #forward
     stop()
     go(90, backwards=True)
-    waitLidarBehind(45) #backing up
+    waitLidarBehind(45.9) #backing up
     arc(0, backwards=True, blocking=False)
     tooClose=False
     while(getSMode()!=SMODE_ARC): sleep(0.01)
@@ -1588,10 +1589,13 @@ def parkingManouver(firstSignColor):
     log.debug("park done")
 
 def findFirstObsInNextSection():
-    waitAbsLidar(0,100)
+    waitEnsureDist(100,10)
+    signColumn=0
+    signRow=-1
     if direction==DIRECTION_RIGHT:
         signObj=findNearestObjectAbs((80, 220), (175, 270), back=False, overrideAbsX=targetLeftWallDist)
         if signObj.empty: signObj=findNearestObjectAbs((175, 220), (220, 270), back=False, overrideAbsX=targetLeftWallDist)
+        if signObj.empty: return 0,-1#SR?
         sx, sy=signObj.toAbsolute().center
         log.debug(f"first obstacle sx: {sx} sy: {sy}")
         signColumn=-1 if sy>250 else 1
@@ -1599,9 +1603,11 @@ def findFirstObsInNextSection():
     else:
         signObj=findNearestObjectAbs((-75, 220), (20, 270), back=False, overrideAbsX=targetLeftWallDist)
         if signObj.empty: signObj=findNearestObjectAbs((-120, 220), (-75, 270), back=False, overrideAbsX=targetLeftWallDist)
+        if signObj.empty: return 0,-1#SR?
         sx, sy=signObj.toAbsolute().center
         signColumn=-1 if sy<250 else 1
-        signRow=0 if sx>-25 else 1 if sx>-75 else 2
+        signRow=0 if sx>-25 else (1 if sx>-75 else 2)
+    log.debug(f"findFirstObsInNextSection: col: {signColumn} row: {signRow}")
     return signColumn,signRow
 
 def obstacleChallengeRun():
@@ -1686,41 +1692,57 @@ def obstacleChallengeRun():
         waitAbsLidar(0,120)
         setTempo(slowSpeed)
         signColumn, signRow=findFirstObsInNextSection()
-        if signRow==0: #obstacle in first lane
+        #SRˇ
+        if signRow==-1:
+            signColor=GREEN if direction==DIRECTION_RIGHT else RED
+            trafficSignMatrix[section%4][0]=signColor
+            trafficSignMatrix[section%4][2]=-signColor
+            turnCorner(target=TURNTARGET_OUTER)
+            setTempo(defaultSpeed)
+            waitLidarBehind(130)
+            correctWallDist(copysign(1,lane))
+        #SR^
+        if signRow==0 or signRow==2: #obstacle in first lane #SR
             turnCorner(target=TURNTARGET_INNER_OBS if (signColumn*direction==1) else TURNTARGET_OUTER_OBS, detection_careful=True)
             signObj=findNearestObjectAbs((20,80),(80,120))
             sx,sy=signObj.toAbsolute().center
+            if signRow==0: signColor=detectObjectColor(signObj)
+            else: signColor=GREEN if signColumn==-1 else RED #SR
             signColumn=-1 if sx<50 else 1
-            #do we overwrite signRow??
-            signColor=detectObjectColor(signObj)
-            trafficSignMatrix[section%4][signRow]=signColumn*signColor #store
-            switchLane(calcLaneFromObs(signColumn, signColor))
+            
+            if signRow==0:  trafficSignMatrix[section%4][signRow]=signColumn*signColor #store #SR
+
+            switchLane(calcLaneFromObs(signColumn, signColor, wide_avoid=True))
             waitLidarBehind(108,decreasing=False)
             signObj = findNearestObjectAbs((20,180),(80,220),back=True, outer=(lane*direction<0)) #first check detection
             if not signObj.empty: #there is an obstacle in row 3
                 stop()
+                signObj = findNearestObjectAbs((20,180),(80,220),back=True, outer=(lane*direction<0)) #after stop check
                 sx, sy = signObj.toAbsolute().center
                 log.debug(f"sx {sx} sy {sy}")
-                signRow = 2
-                signColumn = -1 if sx < 50 else 1
                 signColor=detectObjectColor(signObj)
+                signColumn = -1 if sx < 50 else 1
+                if signRow==2: trafficSignMatrix[section%4][0]=-signColor*signColumn #SR
+                signRow = 2
+                
                 log.debug(f"found obstacle: row {signRow}, column {signColumn}")
                 trafficSignMatrix[section%4][signRow] = signColor * signColumn
                 targetLane=calcLaneFromObs(signColumn, signColor)
                 if copysign(1,lane)==copysign(1,targetLane) and abs(lane)>=abs(targetLane): #if already in correct lane dont move closer to the middle
                     setTempo(defaultSpeed)
-                    waitLidarBehind(130)
+                    waitLidarBehind(130) #???
                     correctWallDist(copysign(1,lane))
                     pass
                 else:
                     switchLane(targetLane, insideWall=isInParkingSection())
                 #DONE with second switchlane or correctWallDist
             else:
+                if signRow==0: trafficSignMatrix[section%4][2]=-(trafficSignMatrix[section%4][0]) #SR
                 setTempo(defaultSpeed)
-                waitLidarBehind(130)
+                waitLidarBehind(130) #???
                 correctWallDist(copysign(1,lane))
                 pass
-        else:
+        elif signRow==1: #SR 
             turnCorner(target=TURNTARGET_INNER_OBS if (signColumn*direction==1) else TURNTARGET_OUTER_OBS, detection_careful=False) #optimized turncorner
             #take picture from here
             if signRow==1: waitLidarBehind(105,decreasing=False) #TODO fine-tune
@@ -1938,15 +1960,15 @@ def testRun():
     global trafficSignMatrix
     global heading0
     global parkPos, parkSide, section, lane, accelerationBackward
-    global leftLaneOffset, rightLaneOffset,defaultSpeed,direction,targetLeftWallDist
+    global leftLaneOffset, rightLaneOffset,defaultSpeed,direction,targetLeftWallDist, CAMERA_ANGLE_OFFSET
     initLoop(open=False)
     direction=DIRECTION_RIGHT
     lane=LANE_RIGHT_OBS
     setTempo(slowSpeed)
+    detectObjectColor(findNearestObject((-20, 20),(20, 300)))
+    log.debug(f"map: {mapPointToCam((0,160,0))}") #4.5:320
     go(0)
-    waitAbsLidar(0,150)
-    switchLane(LANE_LEFT)
-    waitAbsLidar(0,50)
+    waitCM(230)
     stop()
     # waitCM(100)
     # stop()

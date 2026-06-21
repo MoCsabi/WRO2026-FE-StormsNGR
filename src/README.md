@@ -64,7 +64,7 @@ We use a 'heartbeat' system between the two units. The Raspberry Pi sends a hear
 
 All of this code can be found in [src/RaspberryPi/ESP32_Service.py](/src/RaspberryPi/ESP32_Service.py) and [src/ESP/run.ino](/src/ESP/run.ino).
 
-For the Led&Key panel we used a preexisting Python library that enabled us to set the display and the individual LEDs or check is a button is pressed.<br>Using the buzzer was also really simple, we just had to set the `+` pin to **HIGH** to start the sound and to **LOW** to stop it.
+For the Led&Key panel we used a preexisting Python library that enabled us to set the display and the individual LEDs or check is a button is pressed.  Using the buzzer was also really simple, we just had to set the `+` pin to **HIGH** to start the sound and to **LOW** to stop it.
 
 For the IMU we opted to use `UART-RVC` communication protocol, where RVC stands for Robot Vacuum Cleaner, since its most commonly used to help navigate robot vacuum cleaners. We choose this mode because this was the simplest one to implement, the sensor just sends the positional data 100 times a second.
 
@@ -77,9 +77,9 @@ For the camera we used the native `picamera` library with the Python opencv libr
 ## The framework - basics
 
 The Raspberry Pi and the ESP microcontroller work together, the ESP mostly completing commands sent by the Pi. The code on the ESP is running constantly, and is made up of two core components: a Main Loop and a Timer Interrupt that uses the hardware clock on the ESP microcontroller to run exactly 100 times a second. The Main Loop is responsible for reading sensors, such as the IMU sensor and doing simple calculations such as automatic continous IMU angle counting which entails detecting when the IMU angle would loop over from 360° to 0° and adding 360° to the count. It is also sending data packets to the Raspberry Pi and receiving and executing commands.
-<br>The Timer interrupt handles speed regulation and steering, both using `PID` regulation, taking into account the current `vMode` and `sMode`. These modes define the steering and driving of the robot, both of which is controlled on the lowest level by the ESP. The Raspberry Pi only needs to send the relevant parameters over then set the `sMode` and `vMode`, and the rest is handled by the ESP. For example to drive straight the Pi needs to send over the target speed, target angle then set `vMode` to `VMODE_FORWARD`, `sMode` to `SMODE_GYRO`, so the speed and direction keeping is handled by the ESP.
+  The Timer interrupt handles speed regulation and steering, both using `PID` regulation, taking into account the current `vMode` and `sMode`. These modes define the steering and driving of the robot, both of which is controlled on the lowest level by the ESP. The Raspberry Pi only needs to send the relevant parameters over then set the `sMode` and `vMode`, and the rest is handled by the ESP. For example to drive straight the Pi needs to send over the target speed, target angle then set `vMode` to `VMODE_FORWARD`, `sMode` to `SMODE_GYRO`, so the speed and direction keeping is handled by the ESP.
 
-To ensure accurate arcing (handled on the ESP) we had to compensate for the speed of the servo. Since our servo takes a considerate amount of time to turn from the outermost position to the center (~0.2 seconds) waiting until the target angle is reached and then turning straight is not correct, as during this ~0.2 second the robot continues turning, missing the target angle. To combat this we introduced a `predictedYaw` variable which linearly interpolates based on the past gyro measurements 0.2 seconds into the future, which we use to stop when it reaches the target angle. This, of course, is far from a perfectly simulated calculation, but we were able to fine-tune the parameters for our use case with great results.
+To ensure accurate arcing (handled on the ESP) we had to compensate for the speed of the servo. Since our servo takes a considerate amount of time to turn from the outermost position to the center (~0.2 seconds) waiting until the target angle is reached and then turning straight is not correct, as during this ~0.2 second the robot continues turning, missing the target angle. To combat this we introduced a `predictedYaw` variable which linearly interpolates based on the past gyro measurements 0.2 seconds into the future, which we use to stop when it reaches the target angle. This, of course, is far from a perfectly simulated calculation, but we were able to calibrate the parameters for our use case with great results.
 
 On the Pi side there are 3 important processes. There is the main thread running the challenge code. This thread is usually blocked waiting for condition, such as going *x* centimeters, or until the robot is *x* centimeters from the wall. This thread can also send commands to the ESP.
 
@@ -99,31 +99,31 @@ The framework is made up of movement, sensing and high-level functions.
 
 For movement we have an absolute-angle-system, which means that instead of turning 90° degree we turn *to* the 90° position, which will always be *right*. We have a global *tempo* variable set by `setTempo()` which provides us with an abstraction layer over the control of the robot's speed. It is detailed in the [High-level functions section](#high-level-functions).
 
-`settargetSpeed(targetSpeed)`<br>
+`settargetSpeed(targetSpeed)`  
 Sets the Pi-side acceleration target to `targetSpeed`. The Pi will gradually accelerate (or deccelerate) to this speed while sending over the current speed to the ESP.
 
-`go(direction, speed_override)`<br>
+`go(direction, speed_override)`  
 The most important movement function, it starts the motors and tells the ESP the target direction (absolute). The speed will be the current *tempo*, unless `speed_override` is specified, in which case it goes with the parameter's value, without changing the *tempo*. After sending the commands the function returns, it's non-blocking and takes negligible time to run.
 
-`goUnreg(force, direction)`<br>
+`goUnreg(force, direction)`  
 Tells the ESP to start the motors with constant `force` instead of using the PID speed control algorithm, and `direction` (absolute).
 
-`waitCM(cm)`<br>
+`waitCM(cm)`  
 Blocks execution until the robot has traveled `cm` centimeters, using the encoder data. If `cm` is negative it waits until the robot has traveled `cm` centimeters backwards.
 
-`waitLidar(angle, cm)`<br>
+`waitLidar(angle, cm)`  
 Blocks execution until the LiDAR sensor reads a smaller value than `cm` in `angle`.
 
-`waitAbsLidar(angle, cm)`<br>
+`waitAbsLidar(angle, cm)`  
 Same as waitLidar except factors in the IMU sensor degree to achieve absolute angles. For example `0°` is always the front wall and `90°` is the right wall regardless of actual robot rotation.
 
-`stop(brakeForce, wait)`<br>
+`stop(brakeForce, wait)`  
 Tells the ESP to start braking with a default braking force unless `brakeForce` (0-100) is specified. If `wait` is true it also waits until the robot is stationary before returning.
 
-`arc(toDegree, speed_override, percent)`<br>
+`arc(toDegree, speed_override, percent)`  
 The robot arcs until it reaches `toDegree` (absolute) with the current *tempo* unless `speed_override` is specified. Percent means how much the wheels are turned during arcing. 100 means turned the maximum amount. It blocks execution until the target degree is reached, then switches to going straight and returns.
 
-`setLane(wallDirection, targetDistance, is_small)`<br>
+`setLane(wallDirection, targetDistance, is_small)`  
 Moves the robot `targetDistance` centimeters away from the wall in the specified direction. This could mean moving closer or further away from the wall. The movement consists of going toward the wall (or away) until target cm is reached, then arcing straight. Since while arcing the robot's distance from the wall changes we have to somehow combat this. `is_small` defines the *profile* of the operation, which among other things determines the angle and the offset of the arc.
 
 For example, completing a 1 meter square (with rounded corners) would look like this:
@@ -146,33 +146,33 @@ stop(wait=True)
 
 ### Sensing functions
 
-`readLidar(angle)`<br>
+`readLidar(angle)`  
 Returns the distance measured by the LiDAR sensor at `angle` using the last stored measurement, in centimeters. Also handles LiDAR **deadzone** checking, since the sensor can't see all 360°, some are covered by the robot's parts. Since its mostly used to measure wall distance this function can return so-called *phantom distances*. This means that instead of returning the faulty deadzone distance we measure the closest non-deadzone distance and using trigonometry calculate the distance for the original degree by assuming we are measuring the distance along a wall (so perpendicular to it):
 ![illustration showing phantom distances](phantom-distance.png)
 The area between the gray lines is the zone where the LiDAR is blocked, the dotted red line is where we want to measure (perpendicular to the wall) and the solid red line is the first non-deadzone angle where we can measure distance. Alpha is the difference between the measuring angle and the requested angle. By imagining the right triangle defined by $\alpha$, measured distance and phantom distance we can calculate the unknown length of phantom distance:
 
 $$\text{phantomdistance}=\cos(\alpha)\cdot \text{measureddistance}$$
 
-`readAbsLidar(angle)`<br>
+`readAbsLidar(angle)`  
 Same as `readLidar` except it uses the IMU angle to calculate in absolute angles (the front wall is 0°, the wall to the right is 90° and so on).
 
-`findNearestPoint(bottomLeftX, bottomLeftY, topRightX, topRightY)`<br>
+`findNearestPoint(bottomLeftX, bottomLeftY, topRightX, topRightY)`  
 Uses the LiDAR sensor to find the nearest detected object in the specified rectangle. The input coordinates are relative to the centre of the LiDAR. First, the rectangle's corner's `x`,`y` coordinates are mapped to a Polar coordinate system (to radius and angle from the origin). After this it checks the relevant angles, which are the angles between the bottom left corner's Polar angles and the top right corner's Polar angles. Then at all the relevant angles the angle and the LiDAR measurement (angle and radius) is converted back into `x` and `y` coordinates, relative to the center of the LiDAR sensor. After that, it checks if the converted point (x and y coordinate) is inside the rectangle defined by the parameters. If it is, then it gets stored. Finally it returns the closest stored point, which is the one with the lowest `y` value (relative to the center of the LiDAR). This function has two really important use cases. It can either be used, as the name implies, to find the nearest point and get its x and y coordinates relative to the robot. This could be used to decide the position of traffic signs for example, but for this we rather use the later detailed `findNearestObj`. The other use case is to simply check if there is an object in the selected rectangle or not, since if no objects were found it returns `-1`. This is the main use case, for example to check the driving direction during Open Challenge by looking for a "gap".
-This use case visualized in our [custom sensor data visualizer](/other/RpiCode/README.md):<br>
+This use case visualized in our [custom sensor data visualizer](/other/RpiCode/README.md):  
 ![alt text](image.png)
-<br>(The white points are all what the LiDAR sees, the white lines are the "angles of interest", the red rectangles are where its checking for objects)
+  (The white points are all what the LiDAR sees, the white lines are the "angles of interest", the red rectangles are where its checking for objects)
 
-`findNearestPointAbs(bottomLeftX, bottomLeftY, topRightX, topRightY)`<br>
+`findNearestPointAbs(bottomLeftX, bottomLeftY, topRightX, topRightY)`  
 Same as `findNearestPoint` except it uses the bottom left corner of the current section on the mat as the origin point for the given coordinates (`bottomLeftX`, `bottomLeftY`,...) by measuring the distance to the left wall and to the back wall. If an object was found the detected point is returned also relative to the bottom left corner.
 
-`findNearestObj(bottomLeftX, bottomLeftY, topRightX, topRightY)`<br>
+`findNearestObj(bottomLeftX, bottomLeftY, topRightX, topRightY)`  
 Works similarly to `findNearestPoint` except it detects the start and end point of an obstacle (in our case a traffic sign). This data is represented by a `dataclass` with some key variables (starting point, endpoint) and some convenience methods such as calculating the centre of the object or checking whether the object was found or is `empty`. This data is crucial for detecting the color of the object.
 
-`findNearestObjAbs(bottomLeftX, bottomLeftY, topRightX, topRightY)`<br>
+`findNearestObjAbs(bottomLeftX, bottomLeftY, topRightX, topRightY)`  
 Same as `findNearestObj` except it uses the gyro and the LiDAR to calculate the position relative to the bottom left corner of the current section, similarly to `findNearestPointAbs`.
 
-`mapPointToCam(pointX, pointY, pointZ)`<br>
-This function converts a point in 3D space, relative to the projection of the centre of the LiDAR on the mat to a pixel coordinate. After much thought we were able to reduce the problem to **two trigonometric functions**. First we calculate the X,Y,Z distance of the camera and the point using the known position of the camera. After this imagine the point of the camera and the given point viewed from above, and draw in the imaginary right triangle like so:![illustration showing said triangle](top-view.png)<br>(X axis is sideways, Y axis is forward, example is detecting the top right point of a green traffic sign's front face)
+`mapPointToCam(pointX, pointY, pointZ)`  
+This function converts a point in 3D space, relative to the projection of the centre of the LiDAR on the mat to a pixel coordinate. After much thought we were able to reduce the problem to **two trigonometric functions**. First we calculate the X,Y,Z distance of the camera and the point using the known position of the camera. After this imagine the point of the camera and the given point viewed from above, and draw in the imaginary right triangle like so:![illustration showing said triangle](top-view.png)  (X axis is sideways, Y axis is forward, example is detecting the top right point of a green traffic sign's front face)
 
 Now do the same but viewed from the side:
 ![Illustration showing said triangle](side-view.png)
@@ -185,43 +185,43 @@ $$y = \frac{480 px}{41.5\degree}\cdot (\arctan(\frac{X_{difference}}{Y_{differen
 
 (The image is 640px*480px, horizontal FOV is 53°, vertical FOV is 41.5°, horizontal rotation is 0°, vertical rotation is 15°)
 
-`detectObjectColor(Object obj)`<br>
+`detectObjectColor(Object obj)`  
 Detects the color of the object by first calculating the pixel location of the top left point of the traffic sign and the bottom right point of the traffic sign gathered from the `Object` dataclass parameter. Then utilizing multiprocessing uses `cv2.mean` to calculate the average of the selected area, plus we add a safety border of around 5 pixels. Finally we subtract the `green` value from the `red` value, and compares this number to a well-calibrated border value to determine whether the sign is red or green.
 
 ### High-level functions
 
 These functions are more complex, mostly made up of other framework functions.
 
-`initLoop()`<br>
+`initLoop()`  
 Always called at the start of the program, initializes some variables, establishes connection with the ESP and other sensors, starts all processes and waits until the first button on the LedAndKey panel is pressed, after which it returns, and the robot run can start. While the button is not pressed it uses the LedAndKey's display to show useful debug sensor data. With the press of the second button you can cycle between different displays. The LEDs also display useful diagnostics information.
 
-`setTempo(newTempo)`<br>
+`setTempo(newTempo)`  
 Sets the *tempo* global variable alongside setting the current `targetSpeed`. We like to think of this like a speed limit sign as we can insert this before critical parts of the mission, like adding it to `turnCorner` to make every turn precise, or before switching lanes. Except instead of being a speed **limit** it specifies the target speed, it can also be inserted in the strategy to speed up the robot in long straight sections for example.
 
-`calcLaneFromObs(column, color, wide_avoid)`<br>
-Calculates to which lane the robot has to switch to in order to avoid the traffic sign in the given `column` and `color`. If color is red is returns the next lane to the right of the lane of the sign, and if it's green then the one to the left of it. One example:<br>
-![showing the robot's choice](calclane.png)<br>
-Here the robot detects a red traffic sign in the left column and chooses the lane to the right of it. More details about the lanes in the strategy section.<br>
+`calcLaneFromObs(column, color, wide_avoid)`  
+Calculates to which lane the robot has to switch to in order to avoid the traffic sign in the given `column` and `color`. If color is red is returns the next lane to the right of the lane of the sign, and if it's green then the one to the left of it. One example:  
+![showing the robot's choice](calclane.png)  
+Here the robot detects a red traffic sign in the left column and chooses the lane to the right of it. More details about the lanes in the strategy section.  
 If `wide_avoid` is true it only returns the left lane or the right lane, thereby sometimes travelling extra distance. In the example above it would return the 40 cm wide section The parameter was added to make the surprise rule and future suprise rules easier to implement.
 
-`switchLane(newLane)`<br>
+`switchLane(newLane)`  
 Switches lanes to `newLane`, which is a constant specifying one of the *lanes* the robot can operate in. More on this in the strategy. After making some calculations, such as determining whether it will be a small distance or a long distance from `lane` and `newLane` and setting the `is_small` parameter accordingly, it calls `setLane` with the correct parameters.
 
-`correctWallDist(walldirection, targetDistance)`<br>
+`correctWallDist(walldirection, targetDistance)`  
 Works similarly to `setLane` but moves at a very limited angle (10°) so arcing straight at the end won't affect the distance from the wall, enabling extra precise positioning. Designed for when the robot has to move straight for an entire section, so it has a lot of space for precise movements.
 
-`waitEnsureDist(target_dist, allowed_deviation)`<br>
+`waitEnsureDist(target_dist, allowed_deviation)`  
 Ensures the robot is `target_dist` away from the front wall by backing up if the it's too close. `allowed_deviation` serves as a buffer, if the robot is only off by this much then no backing up is performed. This is useful when for example we want to turn around the corner at a specific point to end up in a specific lane. This way `allowed_deviation` can be used as leeway to avoid the time-intensive backing up manouver. The distance is always measured from the front wall by `readAbsLidar(0)`. 
 
-`findFirstObsInNextSection()`<br>
-Finds and returns the first traffic sign in the next section before the corner turn using `findNearestObjAbs()`. Does so by first detecting traffic signs in the first and second row (there can be only one), and if none was found then in the third row.<br>
+`findFirstObsInNextSection()`  
+Finds and returns the first traffic sign in the next section before the corner turn using `findNearestObjAbs()`. Does so by first detecting traffic signs in the first and second row (there can be only one), and if none was found then in the third row.  
 ![showing use](findfirstobsinnextsection.png)
 
-`turnCorner(targetLane, detection_careful)`<br>
+`turnCorner(targetLane, detection_careful)`  
 Turns the corner at the and of a section. Is `detection_careful` is false then it performs a single arc at the correct distance away from the front wall to end up in the specified `targetLane` (which is one of the *lanes* the robot can operate in). If `detection_careful` is true it instead completes a turning manouver depending on the current *lane* of the robot which will end up backed near the backwall facing the first obstacles of the next section. More about the turning manouvers in the Strategy section.
 
-`getFirstTurnTarget()`<br>
-Calculated to which lane the robot needs to turn to during the optimized laps. Similar to `calcLaneFromObs()` except it performs one additional path optimization. If there are two signs of the same color in different columns we make sure to target the *inner* or the *outer* lane, prohibiting optimizing by moving to the *obstacle lanes* to avoid having to do a `switchlane` between the two.<br>
+`getFirstTurnTarget()`  
+Calculated to which lane the robot needs to turn to during the optimized laps. Similar to `calcLaneFromObs()` except it performs one additional path optimization. If there are two signs of the same color in different columns we make sure to target the *inner* or the *outer* lane, prohibiting optimizing by moving to the *obstacle lanes* to avoid having to do a `switchlane` between the two.  
 ![showing the optimization in work](getturntarget_optim.png)
 (Illustration showing the additional path optimization in action as the green arrow and the red arrow is without optimization)
 ## Robot run strategy
@@ -287,16 +287,16 @@ A short summary of the different keywords we will be using throughout the strate
 - **Corner section**: One of the 4 sections with the orange and blue lines. Here the robot has to turn 90° to continue the on the field.
 - **Sector**: Our own definition, consists of a corner section and a neighboring straightforward section in this order. There are 4 sectors on the mat.
 - **Row** (straightforward section): On the Straightforward section there are 3 rows, in each of them are two possible traffic sign locations. They're numbered from 1-3, starting with the one the robot would first encounter with the current driving direction.
-- **Column** (straightforward section): The dotted lines on the straightforward sections, each containing 3 possible traffic sign locations. They are named relative to the driving direction.<br>
-![rows 1-3 and columns right and left](rows_columns.png)<br>Illustrations showing the rows' and columns' position. The values in the parentheses is how we refer to them internally in the code.
-- **lane**: Our own definition, specific walldistances in the straightforward sections where the robot can operate. We have 4 lanes. The two 40 cm wide areas and the dotted lines (columns) are considered lanes. The latter are also referred to as *obstacle lanes*, but they are full value-fledged lanes.<br>
-![4 lanes](lanes.png)<br>
-Here these lanes are illustarted as a wide rectangle, but in reality they are 1 specific walldistance, a line. Of course the movement of the robot isn't perfect, so it's rarely at the exact distance, but we try to minimize the offset to at max 10 cm. This is what we use `correctWallDist()` for.<br>
+- **Column** (straightforward section): The dotted lines on the straightforward sections, each containing 3 possible traffic sign locations. They are named relative to the driving direction.  
+![rows 1-3 and columns right and left](rows_columns.png)  Illustrations showing the rows' and columns' position. The values in the parentheses is how we refer to them internally in the code.
+- **lane**: Our own definition, specific walldistances in the straightforward sections where the robot can operate. We have 4 lanes. The two 40 cm wide areas and the dotted lines (columns) are considered lanes. The latter are also referred to as *obstacle lanes*, but they are full value-fledged lanes.  
+![4 lanes](lanes.png)  
+Here these lanes are illustarted as a wide rectangle, but in reality they are 1 specific walldistance, a line. Of course the movement of the robot isn't perfect, so it's rarely at the exact distance, but we try to minimize the offset to at max 10 cm. This is what we use `correctWallDist()` for.  
 We mainly refer to these lanes relative to the driving direction (left, right...), but sometimes we need to refer to them relative to the walls of the field (inner, outer...). The distance between two neighboring lanes is 20 cm. The value in the parentheses is how we refer to them internally in the code.
 
 Our goal was to make only a handful of possible driving scenarios on the straightforward and corner sections, and make them completely independent of each other. This vastly reduces the different cases we have to test.
 #### Leaving the parking space
-Start of the round the robot has to leave the parking space. This is a very precise operation so to eliminate slippage the robot moves at a **very** slow speed. Thankfully the robot can leave the parking space in one continuous arc. However, depending on the traffic sign in front of the robot and the driving direction there are still 4 scenarios.<br>If the driving direction is counter-clockwise, the robot first arcs out so the traffic sign on the third row can be detected. Then the obstacle is avoided according to its color:
+Start of the round the robot has to leave the parking space. This is a very precise operation so to eliminate slippage the robot moves at a **very** slow speed. Thankfully the robot can leave the parking space in one continuous arc. However, depending on the traffic sign in front of the robot and the driving direction there are still 4 scenarios.  If the driving direction is counter-clockwise, the robot first arcs out so the traffic sign on the third row can be detected. Then the obstacle is avoided according to its color:
 ![scenarios showing parking out with driving direction counter-closkwise](park-right.png)
 (If there is no traffic sign we treat it as if there were a red traffic sign)
 
@@ -316,7 +316,7 @@ If it isn't, then the robot can perform a single arc at a calculated distance fr
 
 The obstacle in the 2nd and 3rd row are treated the same, the only difference is for the 3rd row we move a bit closer before taking a photo. After detecting the sing's color we perform a lane switch to the lane calculated by `calcLaneFromObs`. Since we are facing the sign we at most have to switch over 1 lane, ensuring the switch can be finished before the end of this sector, in the straight section. 
 
-If the first sign is in the 1st row then the robot sadly can't always turn in to face the obstacle. Even when it could (coming from the outer lane) after detecting it and completing a `switchLane` there may be a seconds sign on the third row. We found the robot can't always complete two switchlanes when starting from in front of the first sign. For this reason, and to keep the flow of the program simpler if there is a sign on the first row we always perform a turning manouver which ends with the robot backed up to the backwall and facing the first sign. This does cost considerably more time, but keeping the number of cases to a minimum and keeping sections completely independent of eachother is worth it in our opinion. There are 4 lanes the robot could be coming from but only really two manouvers, as the *inner* and *inner obstacle* lanes and the *outer* and *outer obstacle* lanes are treated as the same with minor differences. Each manouver has two versions depending on where it has to end up (facing one of the columns), but the only difference is where the robot starts the manouver.<br>The manouvers from all lanes, with the inner and outer lanes targeting the inner column and the obstacle lanes targeting the outer column:
+If the first sign is in the 1st row then the robot sadly can't always turn in to face the obstacle. Even when it could (coming from the outer lane) after detecting it and completing a `switchLane` there may be a seconds sign on the third row. We found the robot can't always complete two switchlanes when starting from in front of the first sign. For this reason, and to keep the flow of the program simpler if there is a sign on the first row we always perform a turning manouver which ends with the robot backed up to the backwall and facing the first sign. This does cost considerably more time, but keeping the number of cases to a minimum and keeping sections completely independent of eachother is worth it in our opinion. There are 4 lanes the robot could be coming from but only really two manouvers, as the *inner* and *inner obstacle* lanes and the *outer* and *outer obstacle* lanes are treated as the same with minor differences. Each manouver has two versions depending on where it has to end up (facing one of the columns), but the only difference is where the robot starts the manouver.  The manouvers from all lanes, with the inner and outer lanes targeting the inner column and the obstacle lanes targeting the outer column:
 
 ![turning scenario](turn_i.png) ![turning scenario](turn_o.png)
 
@@ -328,7 +328,7 @@ As the result of the many simplifications we made to the challenge, only a handf
 
 After completing the first lap we no longer have to detect the color of the obstacles, which leaves the door open for further optimizations.
 
-![detection lap](detectionlap.png)<br>
+![detection lap](detectionlap.png)  
 (Illustration showing a full detection lap starting from START. The red arrows represent backing up)
 
 Pseudo code of the detection laps:
@@ -352,7 +352,7 @@ repeat 4 times:
 ```
 (Many parameters are left out and variables are treated as-is, the code mainly serves to illustrate how we actually coded the challenge code in Python)
 
-Flowchart of the detection sectors:<br>
+Flowchart of the detection sectors:  
 ![flowchart of detection sectors](detection_flowchart.png)
 
 #### Connecting the loops
@@ -362,8 +362,8 @@ From an abstract point-of-view our code consists of a detection loop doing 1 lap
 
 After all obstacles have been detected, the robot follows a much more optimized path. Most of the optimization comes from always knowing where to turn in the corner. After turning it may have to perform one more switchlane to finish the section.
 
-The robot is able to complete the turn from one lane to another in one continous arc, a massive improvement from the detection laps' complex manouvers. Since the robot already knows the color of all obstacles, it can make one of the following turns based on it's current lane and the target lane, calculated by `getFirstTurnTarget()`:<br>
-![all one-arc turns](onearcturns.png)<br>
+The robot is able to complete the turn from one lane to another in one continous arc, a massive improvement from the detection laps' complex manouvers. Since the robot already knows the color of all obstacles, it can make one of the following turns based on it's current lane and the target lane, calculated by `getFirstTurnTarget()`:  
+![all one-arc turns](onearcturns.png)  
 As it's visible here this results in a ton of different turns, but really the only difference is a number telling the robot when to start the arc, so the incoming lane doesn't matter, we only have to fine-tune 4 values. 
 
 Although the robot is able to complete these turns in one arc, sometimes previous delays stack up, and it might already be over it's target position. This is combatted by `waitEnsureDist()`, which backs up if too close. This perfectly ensures the previous sector(s)' delays won't effect the current sector's, at the price of a time-intensive backup manouver.
@@ -372,7 +372,7 @@ Although the robot is able to complete these turns in one arc, sometimes previou
 
 We only have to do a switchlane if there are two different colored traffic signs in the section. Even though there could be two of signs of the same color we optimize our path to turn in to the lane which satisfies both signs, as described in the framework documentation under `getFirstTurnTarget()`, eliminating the need for a mid-section switchlane in this case. If we do need to switch lanes we switch to the optimal lane calculated by `calcLaneFromObs()`, finishing the sector.
 
-Here's what an optimized lap might look like, showcasing many different optimizations:<br>
+Here's what an optimized lap might look like, showcasing many different optimizations:  
 ![optimized lap](optimized_lap.png)
 
 With these optimizations we were able to shave down about 70 seconds from our run time, without sacrificing simplicity or reliability.
@@ -389,46 +389,52 @@ repeat 4*2 times:
     correcttWallDist
 ```
 
-Flochart of the optmized sectors:<br>
+Flochart of the optmized sectors:  
 ![optimized flowchart](optimized_flowchart.png)
 #### Parking
 
 After completing 3 laps, just before entering the starting sector the robot starts the parking procedure. We again strived for simplicity and decided to develop **one** parking maneuver and fine tune it. If there is a traffic sign on the first row of the section it still has to avoid it in the correct direction. If according to the color the robot has to move to the outer lane, or there is no traffic sign there then the robot completes parking like so:
 ![illustration showing unified parking](unified-parking.png)
 The robot comes from either the right or the left, depending on the driving direction, this is represented by the black arrows. Red arrows mean driving backwards, green means forwards. Accuracy is key during the maneuver so the robot moves very slowly and constantly senses its surroundings.
-<br>However if the sign requires the robot to move in the inner lane we can't complete this unified parking maneuver. To make it work we have to avoid the sign by moving to the inner lane. Then we switch to the inner lane, and back up (making sure we don't pass the traffic sign in the wrong direction):
+  However if the sign requires the robot to move in the inner lane we can't complete this unified parking maneuver. To make it work we have to avoid the sign by moving to the inner lane. Then we switch to the inner lane, and back up (making sure we don't pass the traffic sign in the wrong direction):
 ![illustration showing said maneuver](parking-switchlane.png)
  After this we assume the unified parking position and complete parallel parking regularly.
 
 ### Suprise rule
-For the first time in Future Engineers history there was a surprise rule announced a few weeks before the national finals, for both the Open and Obstacle challenges. Before modifying the code we uploaded it to GitHub and made sure to mark every changed line for the suprise rule to make reverting to the base challenge simple.
-#### Open challenge
+For the first time in Future Engineers history there was a surprise rule announced a few weeks before the national finals, for both the Open and Obstacle challenges.
+
+For the open challenge the surprise rule stated that ending touching the inner wall ends the run, similarly to how touching the outer walls end the run in the base rules.
+
+In the obstacle challenge after the randomization you had to replace one of the obstacle, with the exception of the first and last sign, with a LEGO minifigure. This minifigure would be placed near the inner wall inside the green square. Touching, moving this minifigure would end the run instantly, similarly as if you avoided a sign on the wrong side or touched parking walls. Which way you avoid the minifigure does not matter.
+
+Before modifying the code we uploaded it to GitHub and made sure to mark every changed line for the suprise rule to make reverting to the base challenge simple.
+#### Open challenge solution
 For this challenge the change was minimal, and it didn't effect us at all, since our strategy was already to drive on the outer lane of the mat. But since the time of the Open Challenge run is super unlikely to matter we are prepared to slow down the robot if there is any uncertainty in the run.
-#### Obstacle challenge
+#### Obstacle challenge solution
 First we tested if the robot can detect the LEGO minifigure. It couldn't reliably. This meant we had to plan for both detecting and not detecting the mini. If we detect it there is no problem. The robot will simply treat it as a traffic sign, take a photo and assign it whatever color it happens to detect. It will always avoid it.
 
-If it doesn't detect it (majority of cases) we have to keep in mind that the mini has to be at a valid traffic sign spot. So we just treat every valid traffic sign spot as being occupied, even if the LiDAR didn't find anything there.<br>
-![showing possible mini locations](possible_mini_locations.png)<br>
+If it doesn't detect it (majority of cases) we have to keep in mind that the mini has to be at a valid traffic sign spot. So we just treat every valid traffic sign spot as being occupied, even if the LiDAR didn't find anything there.  
+![showing possible mini locations](possible_mini_locations.png)  
 (Illustration showing detectable obstacles and where the minifugre could be.)
 
 During the detection if we detect a sign in the middle row we know that section is safe, nothing is changed.
 
-If we detected a sign in the 1st row we do what we normally would, with the important change that we can only switch to the outer or the inner lane. The robot can't end up in one of the *obstacle lanes* to avoid hitting the minifigure, so we set `wide_avoid` to **true** in the `switchlane`.<br>
-![surprise rule illustration](surp_1st.png)<br>
+If we detected a sign in the 1st row we do what we normally would, with the important change that we can only switch to the outer or the inner lane. The robot can't end up in one of the *obstacle lanes* to avoid hitting the minifigure, so we set `wide_avoid` to **true** in the `switchlane`.  
+![surprise rule illustration](surp_1st.png)  
 (The green arrow is the path the robot would take if the sign's color is green, the red is if it's red, the X-s mark the avoided lane)
 
-If we detected a sign in the 3rd row we can't know the mini isn't in the 1st row so we have to avoid it by performing the turn as if there was a sign in the 1st row. Then we override the detection of the color for he nonexistent sign with an arbitrarily chosen color. We chose the color that takes us to the right lane if the sign on the 3rd row's in the right column and vice-versa, also setting `wide_avoid` to true. After that we detect and avoid the sign as we would normally in a 2 sign section.<br>
-![sign on third row](surp_3rd.png)<br>
+If we detected a sign in the 3rd row we can't know the mini isn't in the 1st row so we have to avoid it by performing the turn as if there was a sign in the 1st row. Then we override the detection of the color for he nonexistent sign with an arbitrarily chosen color. We chose the color that takes us to the right lane if the sign on the 3rd row's in the right column and vice-versa, also setting `wide_avoid` to true. After that we detect and avoid the sign as we would normally in a 2 sign section.  
+![sign on third row](surp_3rd.png)  
 (We avoid the potential minifigure from the right because the detected sign is in the right column)
 
-The surprise rule also introduces a special case that we haven't dealt with before, a seemingly empty section. Previously this meant something went wrong but now this is a valid state. In this case we just move to the outer lane to avoid the minifigure.<br>
-![no obstacles detected](surp_none.png)<br>
+The surprise rule also introduces a special case that we haven't dealt with before, a seemingly empty section. Previously this meant something went wrong but now this is a valid state. In this case we just move to the outer lane to avoid the minifigure.  
+![no obstacles detected](surp_none.png)  
 
 Since the surprise rule stated that the minifigure can't be in the starting segment the *early detect* (section between detection and optimized loops) code did not have to be changed.
 
-We also realized we don't have to change the optimized laps at all, if we fill out the `trafficSignMatrix` (2 dimansional array conatining detected signs) to avoid every potential minifigure position.<br>
-If the section contains a middle sign or 2 signs nothing had to be changed, the minifigure can't be in this section. If it contains 1 sign in the 1st or 3rd row we have to make sure it doesn't optimze it's movement through an *obstacle lane* and hit the minifigure. If it's in the 1st row then we have to make sure it doesn't switch lanes into the *obstacle lane* next to the traffic sign. This can happen for example if we had detected a red sign on the left lane, in this case the robot would switch to the *right obstacle lane*. We can combat this by creating a fake traffic sign in the 3rd row with the same color but in the other column. In the strategy we specifically optimize the run by checking if there are 2 obstacles of the same color and if yes then turning straight into the lane that avoids both of them to avoid making an extra lane switch. We do something similar if one sign was detected in the 3rd row, but we create the fake traffic sign in the 1st row. There is also the case of the empty section. Here we create two obstacles of the arbirarily chosen color and place them on the 1st and 3rd rows, on different columns. An illustration showing a randomization and where the fake traffic signs were created:<br>
-![fake obstacles outlined](fakeobstacles.png)<br>
+We also realized we don't have to change the optimized laps at all, if we fill out the `trafficSignMatrix` (2 dimansional array conatining detected signs) to avoid every potential minifigure position.  
+If the section contains a middle sign or 2 signs nothing had to be changed, the minifigure can't be in this section. If it contains 1 sign in the 1st or 3rd row we have to make sure it doesn't optimze it's movement through an *obstacle lane* and hit the minifigure. If it's in the 1st row then we have to make sure it doesn't switch lanes into the *obstacle lane* next to the traffic sign. This can happen for example if we had detected a red sign on the left lane, in this case the robot would switch to the *right obstacle lane*. We can combat this by creating a fake traffic sign in the 3rd row with the same color but in the other column. In the strategy we specifically optimize the run by checking if there are 2 obstacles of the same color and if yes then turning straight into the lane that avoids both of them to avoid making an extra lane switch. We do something similar if one sign was detected in the 3rd row, but we create the fake traffic sign in the 1st row. There is also the case of the empty section. Here we create two obstacles of the arbirarily chosen color and place them on the 1st and 3rd rows, on different columns. An illustration showing a randomization and where the fake traffic signs were created:  
+![fake obstacles outlined](fakeobstacles.png)  
 (The fake obstacles are outlined with purple, the black arrows show the path of the optimized laps, the black figures show the possible positions of the LEGO minifigure)
 
 Initially we also had an idea to simply forbid the robot from ever going to the *obstacle lanes*. The main timeloss of the optimized laps is situations where we have to backup at the end of a section because the robot finishes the section too late. This happens around sections with 2 different colored signs, and by keeping these optimized we avoid losing a lot of time compared to the simpler solution of just diabling the *obstacle lanes*.

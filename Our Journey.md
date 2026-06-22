@@ -176,13 +176,11 @@ Finally, to make finding problems easier in the future, we also added a few feat
 
 The final thing we did was to change out the wheels. With the robot being able to go much faster, the wheels we used before had started to slip. We could have just changed them to a bigger wheels with more grip, but that could have posed a problem when parking. Luckily we managed to find a pair of wheels **that fit both criteria of being thin and grippy,** so we started using those instead. After this the only thing left to fix was making them mount better on the front, since there we used screws for mounting, instead of an axle. For this we edited the 3d model of the rim, so that it could have **a nut inserted inside of it.** We did have to make a few versions of this design, since the first one did not turn out so well, but we did end up making a good one. These fixes were the last things we needed to do to complete the robot, and after doing so, the robot ended up working beautifully.
 
-
-![evolution of our robot](evolution2.png)
-
 ---
 
 ### The 2026 design
 
+![image showing the evolution of the robot](evolution3.png)
 
 At the start of the year, we were quite sad to see that, like last year, the changes to the rules were minimal. While we obviously still had a lot of ideas in mind, we were already quite happy with our design, so we were hesitant to make big changes. But this does not mean that were sitting around doing nothing.
 

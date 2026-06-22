@@ -1,4 +1,4 @@
-# Hardware documentation and setup guide
+# Mobility and Mechanical Design, Power and Sensor Architecture
 The robot is made up of a lot of different sensors, motors and two processing units, the ESP microcontroller and a Raspberry Pi. The car uses ackermann steering geometry and one DC motor through a motor controller with a differential gearbox we designed and printed from scratch. We had to create a lot of custom 3D printed components and even a custom interconnect panel to help with complicated wiring. The power to the robot is supplied by a 11.1V lithium battery and is later converted to 5V by a step-down module.
 
 ## List of components
@@ -35,8 +35,8 @@ We installed a lot of sensors and other components on the car, here is a list of
   - FPC connector, standard lens, RAW10 color format, vertical FOV up to 41°, horizontal up to 66°
 - **Ball bearings**
   - 3 pieces of 7(inner diameter)x19x6 mm and 1 piece of 6(inner diameter)x12x4 mm
-- **USB-TTL bridge** [CH341T-V3-M](https://www.hestore.hu/prod_10044421.html)
-  - supports both 3.3V and 5V, enables us to use another serial port on the Pi for UART communication
+- **USB-TTL bridge** [CP2102](https://www.ebay.com/itm/203604196200)
+  - 3.3V, enables us to use another serial port on the Pi for UART communication
 - [**Carbon fiber Lego technic axle**](https://joooooy.com/products/moc-carbon-fiber-technic-axle-4519-3705-32073-3706)
   - can be cut to size, heavy-duty, won't bend as easily
 ## Assembly - Overview
@@ -47,10 +47,37 @@ Our robot utilizes ackermann steering geometry and differential drive. We have 3
 ![image showcasing the 3 decks on the robot](decks.png) ![image of the car with connections between components](conn_diagram.png)
 (Sketch that illustrates the connections between the different components of the robot)
 
-For steering we used a solution that can be found in many RC cars, we took one from the Ackermann Intelligent Car by HiWonder. After calibrating the geometry to the length of our car we maximalized the steering range to ensure tight turns. We also replaced the steering servo for one with less power consumption and slightly smaller size. For the driving motor we used a 1:10 ratio 12V DC motor and secured it with 90° mounting brackets. The D-shaft of the motor goes inside the custom-designed differential gearbox, where we convert to a lego technic X axle, on which the wheels are mounted. For the rear wheels we used thin Lego wheels, and for the front wheels thin Lego compatible custom 3D printed wheels to make the robot less wide, and make parking easier. Due to the many heavy installments, such as the motor and the power supply, the center of gravity is low, which is ideal for track stability and turning.<br> On the middle deck we have the Raspberry Pi and the ESP-32 microcontroller with its pins mounted on a custom interconnect PCB. It helps with the wiring by routing certain pins next to each other and allowing us to use ribbon cables, making everything much cleaner. This deck is separated from heavy-duty equipment like the motor which cause electrical noise that could interfere with the controllers. The LiDAR sensor is also mounted here with a special mounting bracket, ensuring the widest FOV possible. The base of the camera tower is also mounted here.<br>The third deck is much smaller, the main reason we installed it was the lack of space for the remaining components, while also keeping the car small and light. Importantly the Led&Key input and display panel is also installed here for easy access. The camera tower ensures the camera is looking in front of the robot with a 15° vertical tilt down. The final size of the robot is 26.8 cm long, 15.8 cm wide and 20.9 cm high. It weighs 1246 grams.
+For steering we used a solution that can be found in many RC cars, we took one from the Ackermann Intelligent Car by HiWonder. After calibrating the geometry to the length of our car we maximalized the steering range to ensure tight turns. We also replaced the steering servo for one with less power consumption and slightly smaller size. For the driving motor we used a 1:10 ratio 12V DC motor and secured it with 90° mounting brackets. The D-shaft of the motor goes inside the custom-designed differential gearbox, where we convert to a lego technic X axle, on which the wheels are mounted. For the rear wheels we used thin Lego wheels, and for the front wheels thin Lego compatible custom 3D printed wheels to make the robot less wide, and make parking easier. Due to the many heavy installments, such as the motor and the power supply, the center of gravity is low, which is ideal for track stability and turning.  
+On the middle deck we have the Raspberry Pi and the ESP-32 microcontroller with its pins mounted on a custom interconnect PCB. It helps with the wiring by routing certain pins next to each other and allowing us to use ribbon cables, making everything much cleaner. This deck is separated from heavy-duty equipment like the motor which cause electrical noise that could interfere with the controllers. The LiDAR sensor is also mounted here with a special mounting bracket, ensuring the widest FOV possible. The base of the camera tower is also mounted here.  
+The third deck is much smaller, the main reason we installed it was the lack of space for the remaining components, while also keeping the car small and light. Importantly the Led&Key input and display panel is also installed here for easy access. The camera tower ensures the camera is looking in front of the robot with a 15° vertical tilt down. The final size of the robot is 26.8 cm long, 15.8 cm wide and 20.9 cm high. It weighs 1246 grams.
 
+## Sensors
+We use many sensors to explore the field, detect the traffic signs and keep track of the robot's position.
+### Encoder
+Possibly the simplest sensor we utilize, it measures the DC motor's direction and rotation, using a magnetic AB encoder. The ESP micrcontroller listens to the interrupts generated on these pins and calculates the actual speed of the robot alongside it's direction. This is measured in "ticks" and "ticks"/second, an arbitrary unit with relation to traveled distance, defined by the motor's and the differential's ratio among other factors. We now have to convert these "ticks" to centimeters. We tested and calibrated this value to be excatly `14 "ticks" per second`, which is a good enough resolution. The calculated speed (signed value) is then sent over to the Raspberry Pi. We mainly use this sensor to measure the speed of the robot but there are situations where we can't rely on the LiDAR so we use the encoder to travel for certain centimeters.
+### IMU
+The Inertial Measurement Unit, sometimes referred to as the gyro is responsible for keeping track of the robot's direction. We wanted an IMU that's capable of calculating the heading angle on board, instead of us having to do it manually, by integrating the angular velocity and applying complicated filters. This way we had one less challenge to solve. It also had to stay reliable during the entire 3 laps. Our first choice of gyro, the MPU-6050 didn't have on-board heading calculation, so we looked for sensors that do. This is how we found the `BNO085`. This sensor satisfied both requirements with a ~2-3° of dynamic error over the 3 laps and excellent on-board angle calculation. In RVC mode the gyro simply sends the heading data over to the ESP 100 times a second which the ESP forwards to the Raspberry Pi. It did have a pretty big static turning angle error, meaning every 90° it gets offset by 1°. But this can be measured, tested, and corrected with a constant multiplier to the angle, right on the ESP, so the Pi receives the already correct angles. More about how exactly this problem was solved in the [Software Architecture and Obstacle Strategy documentation/Sensors and motors](/src/README.md#Sensors-and-motors).
+### LiDAR
+Arguably our most important sensor, a 2D 360° LiDAR sensor. The requirements when choosing the sensor were a range of at least 3m and an accuracy of 2-3 cm. Based on the available datasheets we chose the STL-19P from the D500 development kit. It came with an UART to USB converter board which was useful in the initial setup phase. It's a TOF (time-of-flight) LiDAR, meaning it spins a laser emitter really fast and compares the return time of the laser to the speed of light to calculate the travelled distance. We soon realized the scanning frequency (rotation speed) and ranging frequency (sample rate) are also critical parameters. The base scanning frequency was 10 Hz, so every angle's distance gets refreshed 10 times a second. On the default speed of the robot this translates to ~4-5 cm jumps between measurements. This is not ideal, as we use this sensor with the IMU to measure the distance from the front wall for example to start arcing at a specific point, and 5 cm deviations can lead serious problems. Thankfully this 10 Hz can be sped up to 15 Hz, which greatly reduces this problem, however introduces another. Since the sample rate of the sensor is a fixed 5000 Hz, with 15 Hz scanning frequency that means the angular resolution goes above 1° (360°*15Hz/5000Hz=1,08°), meaning not every degree gets refreshed every turn. This is compensated for in software, more details in the [Software Architecture and Obstacle Strategy documentation/Sensors and motors](/src/README.md#Sensors-and-motors). We also had to write our own library to parse the inputs of the sensor, more about this in the aforementioned documentation.
+
+This sensor is responsible for exploring the field, such as detecting walls and traffic signs. Combined with the IMU it can always tell the distance to the front wall, a function we heavily rely on.
+### Camera
+With the aforementioned sensors only we are missing one crucial information: the color of the traffic signs in obstacle challenge. For this we had to get a camera. We use the Raspberry Pi Camera Module 3, for the ease of integration with the main control unit the Raspberry Pi. Currently we only use the camera for this purpose, to look at an area speicified by the LiDAR and average the pixels, then decide if it's more green or more red.
+### Calibration and tests
+We have a long list of calibration procedures and tests, some having to be done before every round, while most only after a reassembly.
+- Before starting a round the robot has to be straight. We define straight as the rear axle of the robot has to be perpendicular to the walls. But it would be hard to position it based on that, we instead opt to position the robot so it's side is parallel to the walls. This is easier as it's a bigger surface and we can easily access it. But for this to work the side of the robot has to be perpendicular to the rear axle, meaning in our case the two wheels on the side have to be precisely positioned with spacers to form this line.
+- The steering servo has to be calibrated after small mechanical changes. We calibrate 3 PWM values, the center state, the leftmost state and the rightmost state. When calibrating the outermost states we balance between keeping turning simmetrical and maximizing turn angles. Of course we are also make sure not to stall the servo as that could cause a meltdown.
+- The LiDAR is mounted on the middle deck, and any amount of sideways tilt can cause the sensor to see into the ground on one side causing detecting errors. To avoid this the spacers on the side of the robot have to be installed evenly. This needs testing every time there's a reassembly.
+- The LiDAR sensor's forward angle also has to be calibrated. This is because it's not perfectly mounted, the angle the sensor refers to as 0° is in reality something like 1-2°. This is combatted via a constant, which has to be recalibrated after major reassemblies.
+- The IMU sensor has to be standing still when powering on the robot to ensure proper built-in calibration. There is also the static turning angle error which is combatted by a constant multiplier, this only has to be calibrated once per sensor we found.
+- We also have to calibrate the camera's positioning relative to the LiDAR, as mapping the object found by the LiDAR to the camera space is critical for the obstacle challenge. This is achieved with a number of constants, relating to the position and rotation of the camera relative to the LiDAR. This only needs recalibrating during major reassemblies or restructurings.
+
+Before competitions we make sure to run through this list, even the ones normally only necessary after major changes.
 ## Wiring diagrams
-The colored squares represent the cable colors on the robot.
+![full wiring diagram](wiring_diagram_full.jpg)  
+The complete wiring diagram of the robot, including the Raspberry Pi, the ESP, the two motors and the sensors.
+
+The diagrams below serve more as a cabling guide, with the colored squares representing the cable colors on the robot.
 ### ESP microcontroller (NodeMCU) pinout with connections labeled:
 This illustration is most important for the source code, since everything is actually wired through the custom-made board for the ESP.
 ![ESP wiring diagram](pinouts_ESP.jpg)
@@ -78,26 +105,26 @@ The PCB project, along with its BOM can be found in the [schemes/wro_nyak](/sche
 
 ## Power
 The robot's power supply is provided by a central accumulator (battery).
-We considered powering the motors and the control system from separate power sources due to their differing requirements and to limit the electrical interference (noise), but ultimately decided on a common power source for simplicity. The 11.1 V, 6000 mAh lithium accumulator provides more than sufficient capacity for us. A lower capacity device would have also sufficed and while being lighter, but the ability to avoid constant recharging is a great advantage for us during the testing periods. For safety, the accumulator is easily removable via a detachable cable. We have a spare unit, enabling us to charge one while using the other. The accumulator connects directly to the main switch via the detachable cable.
+We considered powering the motors and the control system from separate power sources due to their differing requirements and to limit the electrical interference (noise), but ultimately decided on a common power source for simplicity. The 11.1 V, 6000 mAh lithium accumulator provides more than sufficient capacity for us. A lower capacity device would have also sufficed and while being lighter, but the ability to avoid constant recharging is a great advantage for us during the testing periods. We also don't mind the significant overhead as it allows us to not have to worry about having enough power. For safety, the accumulator is easily removable via a detachable cable. We have a spare unit, enabling us to charge one while using the other. The accumulator connects directly to the main switch via the detachable cable.
 The battery's largest consumer is the drive motor. The DC motor connects to the motor driver without voltage conversion. The driver's maximum current is 3.6A, which is sufficient for the motor's maximum current draw of 3.2A. The motor driver includes essential integrated protections (Overcurrent Protection - OCP, Thermal Shutdown - TSD).
 The remaining components of the system operate at 5V, which we provide using a step-down power supply. A very useful feature of this power supply is that it displays the input voltage, allowing us to monitor the battery's state of charge. Among the 5V components, the Servo and the Raspberry Pi require significant current, which is handled by the power supply's 5A maximum current output.
 A few of the robot's components, mainly sensors, operate at a 3.3V voltage level, but their power supply is provided by the controller (ESP/Pi) they are connected to.
 
 A simple explanation of the power supply hierarchy of our robot.
-- Battery `12V`
-  - Step-down module `12V-->5V`
-    - Steering servo `5V`
-    - Raspberry Pi 5 `5V` (from USB-C, can supply `3.3V`)
-      - LiDAR `5V`, **180mA**
-      - Camera `5V` **200mA** (FFC)
-      - Led&Key Panel `3.3V`
-    - NodeMCU-32S `5V` (from **Vin** pin, can supply `3.3V`)
-      - Inertial Measurement Unit `3.3V`
-      - Motor encoder `3.3V`
-  - Motor driver `12V`
-    - DC motor `12V` **~1A**, max 3.2A
+- Battery `12V`, max. **6A**✅ [`55,73W`/72W]
+  - Step-down module `12V-->5V` max. **5A**✅ [`17,33W`/25W] 
+    - Steering servo `5V`, **200mA** (stall: 1,2A) [max. `6W`]
+    - Raspberry Pi 5 `5V` (from USB-C, can supply `3.3V`), **~1200mA** [`6W`]
+      - LiDAR `5V`, **290mA** [`1,45W`]
+      - Camera `5V` **200mA** (FFC) [`1W`]
+      - Led&Key Panel `3.3V`, **100mA** [`0,33W`]
+    - NodeMCU-32S `5V` (from **Vin** pin, can supply `3.3V`), **500mA** [`2,5W`]
+      - Inertial Measurement Unit `3.3V`, **5mA** [`0,02W`]
+      - Motor encoder `3.3V`, **10mA** [`0,03W`]
+  - Motor driver `12V`, max. **3,6A**✅ [`38,4W`/43,2W]
+    - DC motor `12V` **~1A** (stall: 3.2A) [max. `38,4W`]
 
-
+In the square brackets we calculated the maximum power consumption, which would happen if both the servos and the DC motor was stalling. As you can see we have more than enough power and current. We do have to be careful with stalling as this can cause the motors to melt-down. Short-circuiting can cause very high current that our jumper cables can't handle, causing them to melt. We have to watch out for these dangers as they and have caused long-term damage, we lost a servo and a DC motor this way.
 ## Connections
 The different connections used between the components of the robot and their hierarchy:
 - Computer

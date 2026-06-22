@@ -200,7 +200,7 @@ What we came up with this time:
 
 ##### The new strategy
 
-Our main focus this year was on the new strategy. Last year, we discovered, that the deciding factor between teams with the same amount of points was the** time of only the obstacle challenge, not the sum of both of them.** This made our main concern speeding the obstacle challenge strategy.  
+Our main focus this year was on the new strategy. Last year, we discovered, that the deciding factor between teams with the same amount of points was the** time of only the obstacle challenge, not the sum of both of them. **This made our main concern speeding the obstacle challenge strategy.  
 ![strategy](strategy_WIP.png)  
 We started working on a new and improved, but much more complex strategy, as can be seen on the (WIP) flowchart above. This would have greatly increased our efficiency, but implementing it **would have taken a lot of time and testing.** Time, that sadly we did not have, due to university and school eating up most of it.  
 Reluctantly, we reversed the changes we made and decided on a simpler, intermediate approach. The new strategy required less reversing, and made our robot slip less, in turn making it go into reverse even less. This approach, while still more complex, than the one before, required a lot less testing, thus **implementing it became actually feasible.** So we did. And thankfully, it worked really well.

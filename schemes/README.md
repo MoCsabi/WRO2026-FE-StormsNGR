@@ -84,7 +84,7 @@ This illustration is most important for the source code, since everything is act
 (ENC-Motor encoder, PI-Raspberry Pi, D: directly connected, !: not wired through the interconnect panel)
 
 ### Raspberry Pi pinout with connections labeled:
-![alt text](pinouts_pi.jpg)
+![alt text](pinouts_PI.jpg)
 (L&K-Led and Key panel)
 ### Motor controller wiring:
 ![alt text](pinouts_mc.jpg)

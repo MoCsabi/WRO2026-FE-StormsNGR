@@ -7,7 +7,7 @@ We are the StormsNGR team from Hungary, and we are competing in the 2026 WRO Fut
   - csabi@molnarnet.hu
 - **András Gräff** from [Budapest University of Technology and Economics](https://www.bme.hu/en) Faculty of Mechanical Engineering
   - andrasgraff@gmail.com
-- **Levente Molnár** from [Sóskút Károly Andreetti elementary school](https://iskola.soskut.hu/)
+- **Levente Molnár** from [Vocational Technical School and High School of Biatorbágy](https://en.bit-edu.hu/)
   - levente@molnarnet.hu
 >Coach
 - József Balázs Gräff

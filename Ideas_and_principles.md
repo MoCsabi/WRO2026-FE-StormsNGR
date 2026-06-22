@@ -1,5 +1,5 @@
 # Ideas and principles
-As our second year competing in Future Engineers, this was easily the hardest, most complicated project we have ever completed, and we are very happy with the final results. We like to think this was possible due to our core principles, and some of our great ideas. Here's a non-exhaustive list or our principles and ideas that we believe may be helpful for anyone working on something similar to us.
+As our third year competing in Future Engineers, this was easily the hardest, most complicated project we have ever completed, and we are very happy with the final results. We like to think this was possible due to our core principles, and some of our great ideas. Here's a non-exhaustive list or our principles and ideas that we believe may be helpful for anyone working on something similar to us.
 
 ## Principles
 - **Reliability first**
@@ -21,4 +21,4 @@ As our second year competing in Future Engineers, this was easily the hardest, m
 - A good framework is extremely worth it. This is something we carried on from our past RoboMission experiences. A solid framework can make solving the challenges much easier and trivializes implementing next year's small rule change
 
 ## Conclusion
-We believe these principles are well reflected in our various solutions to challenges that arose during the preparations for the world championship. We truly hope these can be helpful for someone.
+We believe these principles are well reflected in our various solutions to challenges that arose during the preparations for the national championship. We truly hope these can be helpful for someone.

@@ -22,4 +22,14 @@ We were invited to the National/Central European demo competition RoboTech, wher
 ## April
 `04.17.:` We discussed possible improvements of the robot, such as the creation of a new PCB and it's new features. We also decided to implement a new obstacle challenge strategy to reduce our time by a significant amount.
 
-`04.28.:` We started work on creating the improved strategy. It will make the run much more complicated than before, and since simplicity and straight-forwardness is very important to us we had to make sure it remained clear and understandable. We made a [work-in-progress flowchart](strategy_WIP.svg), and started implementing parts of it. Whether we finish it for the nationals or not is not certain.
+`04.28.:` We started work on creating the improved strategy. It will make the run much more complicated than before, and since simplicity and straight-forwardness is very important to us we had to make sure it remained clear and understandable. We made a work-in-progress flowchart, and started implementing parts of it. Whether we finish it for the nationals or not is not certain.  
+![WIP strategy](strategy_WIP.png)
+
+
+## May
+We started implementing the new strategy in parts, and quickly realized this is not the way forward to the nationals. The number of cases grew exponentially and we didn't have enough time before the nationals to finish properly implementing it. We instead made a compromise between the new strategy and the old one that enables us to keep the simplicity of the old strategy with significant timesaves. After deciding on this strategy we quickly started implementing and testing it.
+
+## June
+`06.10.:` We finished implementing the strategy and tested it to our best ability. We are really happy with the results. We also had to start planning the documentation and preparing for the surprise rule.
+
+`06.15.:` The surprise rule was announced. We prioritized solving it, pausing documentation work meanwhile. We managed to solve it fairly easily, but we also have to test the full run with the surprise rule thoroughly.

@@ -250,8 +250,8 @@ Designing and printing out different parts of the robot was one of our biggest t
   The mounting area stayed the same, using two screws for security and having the main body elevated in order to **allow the Lidar's laser to pass through below it.**
   The top part however required a complete redesign since we changed cameras. It needed to keep the camera at a **height of 20 cm with a depression angle of 15°** to get the correct image. This made the piece quite tall, so a few security bars were added for support. To mount the camera we made small pins that fit exactly into the screw holes of the camera. To make it so that it doesn't fall out, a lid can be slotted in from the top. Between the lid and the camera we also inserted a few pieces of paper to cushion it and make sure nothing gets damaged.
 
-  [The blueprint we used](https://datasheets.raspberrypi.com/camera/camera-module-3-wide-mechanical-drawing.pdf)
-  [Link to previous year's version](https://github.com/MoCsabi/WRO2024-FE-StormsNGR/blob/main/schemes/README.md#the-camera-stand)
+  [The blueprint we used](https://datasheets.raspberrypi.com/camera/camera-module-3-wide-mechanical-drawing.pdf)  
+  [Link to the original version](https://github.com/MoCsabi/WRO2024-FE-StormsNGR/blob/main/schemes/README.md#the-camera-stand)
 
   ![camera stand](camera.png)
 
@@ -261,14 +261,14 @@ Designing and printing out different parts of the robot was one of our biggest t
 
    
 ### The tunnel
-  We adjusted the lidar mount and camera stand to enable the **lidar to see backwards,** however another part was needed to be designed to make sure that **nothing obstructed the view.** This was the most simple model we ever made, since it really is just a **little tunnel** meant to clear the way.
+  We previously adjusted the lidar mount and camera stand to enable the **lidar to see backwards,** however another part was needed to be designed to make sure that **nothing obstructed the view.** This was the most simple model we ever made, since it really is just a **little tunnel** meant to clear the way.
   
   ![lidar tunnel](lidar_tunnel.png)
   
-  It is mounted using four screw, which is a bit of an **overkill,** since realistically it won't really be put under any stress. Because of this we only ended up putting screws into the two rear holes.
+  It is mounted using four screws, which is a bit of an **overkill,** since realistically it won't really be put under any stress. Because of this we only ended up putting screws into the two rear holes.
 
 ### The differential gear
-  This year we decided to make a custom differential and replace the old Lego one. This model required by far the most engineering knowledge.
+  We decided to make a custom differential and replace the original Lego one. This model required by far the most engineering knowledge.
   The differential was designed with a few important factors considered:
   >-  **To have a size similar to the previous so it would be easier to implement into the assembly.**
   >-  **To have enough tolerances for 3D printing, but at the same time to minimize the backlash between the various gears and - of course - to achieve maximum efficiency.**
@@ -286,7 +286,7 @@ Designing and printing out different parts of the robot was one of our biggest t
 
   These changes made the frame a lot more secure, since we had problems with the bearings and axles shifting previously.
 
-  [Link to previous year's version](https://github.com/MoCsabi/WRO2024-FE-StormsNGR/blob/main/schemes/README.md#the-differential-gear-frame)
+  [Link to the original version](https://github.com/MoCsabi/WRO2024-FE-StormsNGR/blob/main/schemes/README.md#the-differential-gear-frame)
 
   ![bottom of the differential](diff_bot.png)
   ![top of the differential](diff_top.png)
@@ -301,7 +301,7 @@ Designing and printing out different parts of the robot was one of our biggest t
 
 #### The fitting rings
 
-  As mentioned above, the axles we used required fitting rings in order to fit cleanly into the bearings. The rings then were glued onto the axles, since the frame restricts the movement of the ring, this makes it that the **entire axle can only be moved if the frame itself is disassembled.**
+  As mentioned above, the axles we used required fitting rings in order to fit cleanly into the bearings. The rings then were glued onto the axles, and since the frame restricts the movement of the ring, this makes it so that the **entire axle can only be moved if the frame itself is disassembled.**
 
   ![fitting ring](ring.png)
 
@@ -324,13 +324,25 @@ As mentioned before, to save parking space, we decided to switch to thinner whee
 
 Applying these adjustments made the mounting of the front wheels a lot more secure, and also made them take a more straight path on the road, whereas before, there was a slight wobble when going straight.
 
+We also printed a set of default rims for the back, but that was only, so that the colors would match.
+
 
 ### Aesthetic pieces
 
-To make our robot fit its name **Dózer** a lot better, we made a few design parts for it as well.
+Last year, for aesthetics we put a shovel in the front of the car, but this year we decided to use a more **modular design** instead.  
 
-  ![Bulldozer shovel](shovel.png)
+![bumper mount](Bumper_mount.png)
+
+This mount attaches securely to front of the robot, meanwhile allowing us to use a bumper made from a softer material, like **TPU.**
+
+
+![tpu bumper](glove.png)
+
+This boxing glove is the bumper we landed on this year. It was printed in red TPU with an infill of only 10% to make it extra squishy. This not only improved the looks of our robot, but also made it stronger since, the **TPU could provide cushioning upon an accidental collision.
+**
   ![license plate](plate.png)
+
+  We also made a license plate. It has no function, it is just there for fun.
 
 
 ---
@@ -362,6 +374,7 @@ The middle deck contains the main computing units of the robot, the Raspberry Pi
 The top deck is installed atop the middle deck by two screws and spacers. It's not suitable to support serious weight, but this is not a problem since the components on there are really light. It houses the motor controller, the step-down-module (PSU) and the Led&Key panel. For the PSU and the Led&Key it was important that they're installed somewhere visible since they have displays with important information, so the top deck was perfect for them. On the Led&Key there are also buttons, which we use to start the rounds, so it's really important that these are supported, since a lot of force is going to be affecting them from above(pressing). We solved this by supporting the buttons from below using spacers. The third deck has to be relatively lightweight to not raise the center of gravity too high.
 
 ![top deck with all components](top_deck_full.png)
+
 
 All components have to be installed using small spacers to avoid contact with the metal decks. Wiring between components is done using jumper cables, or in some cases thicker power cables for 12V. For more details on the wiring refer to [Wiring diagrams](#wiring-diagrams).
 ## Conclusion

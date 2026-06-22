@@ -180,8 +180,8 @@ Now do the same but viewed from the side:
 
 Using the known distances we can calculate α and β, which specify how many degrees the point is away from the centre of the camera horizontally and vertically. After measuring the `FOV` of the camera, assuming a linear relation between degrees and pixels (the image is not distorted) and factoring in the vertical (and possible horizontal) rotation of the camera we can calculate the pixel location of the object on the camera image:
 
-$$x = \frac{640 px}{53\degree}\cdot \arctan(\frac{Z_{difference}}{Y_{difference}})$$
-$$y = \frac{480 px}{41.5\degree}\cdot (\arctan(\frac{X_{difference}}{Y_{difference}}) + 15 \degree)$$
+$$x = \frac{640\text{ px}}{53^\circ}\cdot \arctan\left(\frac{Z_{\text{difference}}}{Y_{\text{difference}}}\right)$$
+$$y = \frac{480\text{ px}}{41.5^\circ}\cdot \left(\arctan\left(\frac{X_{\text{difference}}}{Y_{\text{difference}}}\right) + 15^\circ\right)$$
 
 (The image is 640px*480px, horizontal FOV is 53°, vertical FOV is 41.5°, horizontal rotation is 0°, vertical rotation is 15°)
 

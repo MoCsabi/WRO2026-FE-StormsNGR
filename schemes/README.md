@@ -54,7 +54,7 @@ The third deck is much smaller, the main reason we installed it was the lack of 
 ## Sensors
 We use many sensors to explore the field, detect the traffic signs and keep track of the robot's position.
 ### Encoder
-Possibly the simplest sensor we utilize, it measures the DC motor's direction and rotation, using a magnetic AB encoder. The ESP micrcontroller listens to the interrupts generated on these pins and calculates the actual speed of the robot alongside it's direction. This is measured in "ticks" and "ticks"/second, an arbitrary unit with relation to traveled distance, defined by the motor's and the differential's ratio among other factors. We now have to convert these "ticks" to centimeters. We tested and calibrated this value to be excatly `14 "ticks" per second`, which is a good enough resolution. The calculated speed (signed value) is then sent over to the Raspberry Pi. We mainly use this sensor to measure the speed of the robot but there are situations where we can't rely on the LiDAR so we use the encoder to travel for certain centimeters.
+Possibly the simplest sensor we utilize, it measures the DC motor's direction and rotation, using a magnetic AB encoder. The ESP micrcontroller listens to the interrupts generated on these pins and calculates the actual speed of the robot alongside it's direction. This is measured in "ticks" and "ticks"/second, an arbitrary unit with relation to traveled distance, defined by the motor's and the differential's ratio among other factors. We now have to convert these "ticks" to centimeters. We tested and calibrated this value to be excatly `14 "ticks" per cm`, which is a good enough resolution. The calculated speed (signed value) is then sent over to the Raspberry Pi. We mainly use this sensor to measure the speed of the robot but there are situations where we can't rely on the LiDAR so we use the encoder to travel for certain centimeters.
 ### IMU
 The Inertial Measurement Unit, sometimes referred to as the gyro is responsible for keeping track of the robot's direction. We wanted an IMU that's capable of calculating the heading angle on board, instead of us having to do it manually, by integrating the angular velocity and applying complicated filters. This way we had one less challenge to solve. It also had to stay reliable during the entire 3 laps. Our first choice of gyro, the MPU-6050 didn't have on-board heading calculation, so we looked for sensors that do. This is how we found the `BNO085`. This sensor satisfied both requirements with a ~2-3° of dynamic error over the 3 laps and excellent on-board angle calculation. In RVC mode the gyro simply sends the heading data over to the ESP 100 times a second which the ESP forwards to the Raspberry Pi. It did have a pretty big static turning angle error, meaning every 90° it gets offset by 1°. But this can be measured, tested, and corrected with a constant multiplier to the angle, right on the ESP, so the Pi receives the already correct angles. More about how exactly this problem was solved in the [Software Architecture and Obstacle Strategy documentation/Sensors and motors](/src/README.md#Sensors-and-motors).
 ### LiDAR
@@ -73,6 +73,21 @@ We have a long list of calibration procedures and tests, some having to be done 
 - We also have to calibrate the camera's positioning relative to the LiDAR, as mapping the object found by the LiDAR to the camera space is critical for the obstacle challenge. This is achieved with a number of constants, relating to the position and rotation of the camera relative to the LiDAR. This only needs recalibrating during major reassemblies or restructurings.
 
 Before competitions we make sure to run through this list, even the ones normally only necessary after major changes.
+## Connections
+The different connections used between the components of the robot and their hierarchy:
+- Computer
+  - Raspberry Pi `SSH`
+    - ESP `UART` Pi: **USB-TTL** - ESP: **RXD-GPIO-25, TXD-GPIO-26**
+      - IMU `UART-RVC` **(SDA-GPIO 17)**
+      - Motor encoder `Digital` **(A-GPIO 34, B-GPIO 35)**
+      - Motor driver 2x`PWM` **(PWM_1-GPIO 13, PWM_2-GPIO 16)**
+      - Servo `PWM` **(Signal-GPIO 27)**
+    - LiDAR `UART` **(TX-GPIO 15)** 
+    - Led&Key panel `Data, Strobe, Clock` **(DIO-GPIO 19, STB-GPIO 16, CLK-GPIO 13)**
+    - Buzzer `Digital` **(+-GPIO 5)**
+    - Camera `FFC`
+
+The actual communication between the components is detailed in the [software documentation](/src/README.md#sensors-and-motors).
 ## Wiring diagrams
 ![full wiring diagram](wiring_diagram_full.jpg)  
 The complete wiring diagram of the robot, including the Raspberry Pi, the ESP, the two motors and the sensors.
@@ -125,21 +140,6 @@ A simple explanation of the power supply hierarchy of our robot.
     - DC motor `12V` **~1A** (stall: 3.2A) [max. `38,4W`]
 
 In the square brackets we calculated the maximum power consumption, which would happen if both the servos and the DC motor was stalling. As you can see we have more than enough power and current. We do have to be careful with stalling as this can cause the motors to melt-down. Short-circuiting can cause very high current that our jumper cables can't handle, causing them to melt. We have to watch out for these dangers as they and have caused long-term damage, we lost a servo and a DC motor this way.
-## Connections
-The different connections used between the components of the robot and their hierarchy:
-- Computer
-  - Raspberry Pi `SSH`
-    - ESP `UART` Pi: **USB-TTL** - ESP: **RXD-GPIO-25, TXD-GPIO-26**
-      - IMU `UART-RVC` **(SDA-GPIO 17)**
-      - Motor encoder `Digital` **(A-GPIO 34, B-GPIO 35)**
-      - Motor driver 2x`PWM` **(PWM_1-GPIO 13, PWM_2-GPIO 16)**
-      - Servo `PWM` **(Signal-GPIO 27)**
-    - LiDAR `UART` **(TX-GPIO 15)** 
-    - Led&Key panel `Data, Strobe, Clock` **(DIO-GPIO 19, STB-GPIO 16, CLK-GPIO 13)**
-    - Buzzer `Digital` **(+-GPIO 5)**
-    - Camera `FFC`
-
-The actual communication between the components is detailed in the [software documentation](/src/README.md#sensors-and-motors).
 ## Drive
 For steering, we utilize Ackerman steering geometry.
 In short, the inner wheel turn slightly more than the other, so the robot stays on the same arc without any slippage. Here's an image from the [Hiwonder documentation](https://drive.google.com/drive/folders/11k0gbcZExI4076KJ1d_CCIdDlopuYUwO) that illustrates the principle:

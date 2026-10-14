@@ -37,6 +37,7 @@ Our solution is an autonomous car powered by a Raspberry Pi coded in Python, res
 ### [Videos](/video/video.md)
 ### [Team Photos](/t-photos/)
 ### [Vehicle Photos](/v-photos/)
+### [Engineering Journal](/Engineering%20Journal.md)
 
 # Special thanks
 Special thanks to Zsolt Molnár for all the mentoring he's done for us, József Molnár from the [Budapest University of Technology and Economics](https://www.bme.hu/) Faculty of Mechanical Engineering for helping us with the preparations, György Fenyvesi for helping us develop our prototype [custom made interconnect panel](/schemes/README.md/#custom-made-interconnect-panel-wiring-with-connections-labeled), and a bunch of others for helping us by reviewing all the documentation. And of course, to both our families for tolerating us taking up the entire living room with the robot mat 🙂.

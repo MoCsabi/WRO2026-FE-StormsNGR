@@ -1,14 +1,21 @@
 #include <cmath>
 #include <Wire.h> //I2C communication library
 #include "Adafruit_BNO08x_RVC.h" //Gyroscope library
+#include <WiFi.h>
+#include <ESPmDNS.h>
+#include <NetworkUdp.h>
+#include <ArduinoOTA.h>
+
+const char *ssid = "stormsNGR";
+const char *password = "";
 
 #define B_PIN_L 36 //Left motor encoder A pin
 #define A_PIN_L 39 //Left motor encoder B pin
 // #define PWM_PIN_L 21 //Left motor PWM pin (speed control)
 #define PWM_BW_PIN 16 //Backward PWM pin
 #define PWM_FW_PIN 13 //Forward PWM pin
-#define A_PIN_R 35 //Right motor encoder A pin
-#define B_PIN_R 34 //Right motor encoder B pin
+#define A_PIN_R 36 //Right motor encoder A pin
+#define B_PIN_R 39 //Right motor encoder B pin
 // #define PWM_PIN_R 16 //Right motor PWM pin (speed control)
 #define LED_PIN 2 //Built-in Led on the ESP
 #define S_PWM_PIN 27 //Servo PWM pin (turning)
@@ -61,6 +68,8 @@
 #define CMD_SET_SPCTRL_I 35 //set speedcontrol i parameter
 #define CMD_SET_GYROERROR 36 //set gyro error compensation value
 #define CMD_SET_ARCCANCEL 37 //force stop arc
+#define CMD_SET_FORWARD_LMIT 38 //limits the maximum PWM of the motors while driving forward
+#define CMD_SET_BACKWARD_LMIT 39 //limits the maximum PWM of the motors while driving backward
 
 #define CMD_DATA_POSL 11 //retrieve left motor position command
 #define CMD_DATA_POSR 12 // retieve right motor position command
@@ -95,40 +104,40 @@
 #define S_ARC 2 //turn until target angle has been reached
 
 //PID constants for dribing the motors
-int kP=2; //UP
-int kI=0;
-int kD=0;
+volatile int kP=2; //UP
+volatile int kI=0;
+volatile int kD=0;
 
 //PID constants for steering
-int kPY=5;
-int kIY=0;
-int kDY=0;
+volatile int kPY=5;
+volatile int kIY=0;
+volatile int kDY=0;
 
-int SERVO_MIN=219; //maximum safe left state servo PWM
-int SERVO_MAX=417; //maximum safe right state servo PWM
-int SERVO_CENT=291; //calibrated central state servo PWM
+volatile int SERVO_MIN=219; //maximum safe left state servo PWM
+volatile int SERVO_MAX=417; //maximum safe right state servo PWM
+volatile int SERVO_CENT=291; //calibrated central state servo PWM
 
 int conn_state=STATUS_SYNCING;
 int heartBeatT0=0; //last heartbeat time
 
-int posL=0;
-int posR=0;
+volatile int posL=0;
+volatile int posR=0;
 // int posAvg=0;
-int lastTicks=0;
-int speed=0;
-int targetSpeed=0;
-int brakePowerPercent=10;
-int unregPower=0;
+volatile int lastTicks=0;
+volatile int speed=0;
+volatile int targetSpeed=0;
+volatile int brakePowerPercent=10;
+volatile int unregPower=0;
 
 volatile int distance, duration, usStart, lastUSread; //ultrasonic sensor variables
 volatile bool usSent=false; //is expecting an ultrasonic echo
 
 //driving PID variables
-int integral=0;
-int lastError=0;
+volatile int integral=0;
+volatile int lastError=0;
 
-int vMode=V_STOP;
-int sMode=S_NONE;
+volatile int vMode=V_STOP;
+volatile int sMode=S_NONE;
 
 volatile int sGyroLimits=100;
 
@@ -159,6 +168,10 @@ int gyroError=14;
 volatile int absYaw=0;
 volatile int targetYaw=0;
 
+//Driving limit variables
+volatile int forward_pwm_limit=4095;
+volatile int backward_pwm_limit=4095;
+
 volatile int arcDirection=-1; //-1:left, 1:right
 #define ARC_RIGHT 1
 #define ARC_LEFT -1
@@ -171,6 +184,8 @@ volatile int turnRatioL=1000;
 volatile int turnRatioR=1000;
 
 int steerPercentage=0;
+
+#define PWM_START_LIMIT 52
 
 Adafruit_BNO08x_RVC rvc = Adafruit_BNO08x_RVC(); //gyro communication class in RVC mode
 // void setDrivingDirection(int dir){
@@ -202,13 +217,18 @@ void sendUSPulse(){
   usStart=micros();
   usSent=true;
 }
-
+int sign(int n) {
+  return (n > 0) - (n < 0);
+}
+int interpolatePWM(int PWM, int fromPercent=PWM_START_LIMIT, int topercent=100, int rangeEnd=4096) {
+  return (PWM*(100-fromPercent)+rangeEnd*fromPercent*sign(PWM))/100;
+}
 //timer interrupt, run exactly 100 times a second, handles real speed calulation, PID driving motor control and PID steering control
 void IRAM_ATTR onTick(){
   // posAvg=(posL+posR)/2;
-  speed=(speed*80+(((posR-lastTicks) * 100)*20))/100;
+  speed=(speed*90+(((posR-lastTicks) * 100)*10))/100;
   lastTicks=posR;
-  
+  if(sMode!=S_ARC) arcCancel=false;
   switch(sMode){
     case S_NONE:
     {
@@ -229,7 +249,7 @@ void IRAM_ATTR onTick(){
       integralY+=yError;
       volatile int percent=(kPY*yError+integralY*kIY+(yError-lastYError)*kDY)/10*-1;
       percent=max(-sGyroLimits,int(min(percent,sGyroLimits)));
-      percent*=(vMode==V_BACKWARD)?-1:1;
+      percent*=(speed<0)?-1:1;
       int duty=SERVO_CENT;
       if(percent>0){
         duty=(SERVO_MAX-SERVO_CENT)*abs(percent)/100+SERVO_CENT;
@@ -300,7 +320,7 @@ void IRAM_ATTR onTick(){
     {
       // ledcWrite(PWM_PIN_L, 0);
       ledcWrite(PWM_BW_PIN, 0);
-      ledcWrite(PWM_BW_PIN, 0);
+      ledcWrite(PWM_FW_PIN, 0);
       break;
     }
     case V_FORWARD:
@@ -311,11 +331,14 @@ void IRAM_ATTR onTick(){
       // Serial.println(posR);
       int error=targetSpeed-speed;
       integral+=error;
-      int PWM=kP*error+integral*kI+(error-lastError)*kD;
-      lastError=error;
+      int PWM=kP*error+integral*kI/100+(error-lastError)*kD;
       PWM=std::max(-4095/10,PWM);
-      PWM=std::min(4095,PWM);
+      PWM=interpolatePWM(PWM,PWM_START_LIMIT);
+      lastError=error;
       
+      PWM=std::min((int)forward_pwm_limit,PWM);
+      PWM=std::max(-4095,PWM); //safeguard
+      PWM=std::min(4095,PWM); //safeguard
       if(PWM<0){
         ledcWrite(PWM_FW_PIN, 0);
         ledcWrite(PWM_BW_PIN, abs(PWM));
@@ -333,12 +356,16 @@ void IRAM_ATTR onTick(){
     {
       int error=targetSpeed-speed;
       integral+=error;
-      int PWM=(kP*error+integral*kI+(error-lastError)*kD);
-      PWM*=-1;
-
+      int PWM=(kP*error+integral*kI/100+(error-lastError)*kD);
       lastError=error;
+      PWM*=-1;
       PWM=std::max(-4095/10,PWM);
-      PWM=std::min(4095,PWM);
+      interpolatePWM(PWM,PWM_START_LIMIT);
+      
+      PWM=std::min((int)backward_pwm_limit,PWM);
+
+      PWM=std::max(-4095,PWM); //safeguard
+      PWM=std::min(4095,PWM); //safeguard
       if(PWM<0){
         ledcWrite(PWM_BW_PIN, 0);
         ledcWrite(PWM_FW_PIN, abs(PWM));
@@ -404,6 +431,16 @@ void setup() {
   // begin
   Serial.begin(115200);
   Serial.println("START");
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  ArduinoOTA
+  .onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    });
+  ArduinoOTA.begin();
+  
   //driving PWM setup
   // ledcAttach(PWM_PIN_L, motor_pwm_freq, motor_pwm_res);
   ledcAttachChannel(PWM_BW_PIN, motor_pwm_freq, motor_pwm_res, 0);
@@ -441,14 +478,19 @@ void setup() {
   ledcWrite(S_PWM_PIN, SERVO_CENT);
 
   //encoder
-  pinMode(A_PIN_L, INPUT);
-  pinMode(B_PIN_L, INPUT);
+  // pinMode(A_PIN_L, INPUT);
+  // pinMode(B_PIN_L, INPUT);
   pinMode(A_PIN_R, INPUT);
   pinMode(B_PIN_R, INPUT);
-  attachInterrupt(digitalPinToInterrupt(A_PIN_L), readEncoder<'B','L'>, RISING);
-  attachInterrupt(digitalPinToInterrupt(B_PIN_L), readEncoder<'A','L'>, RISING);
-  attachInterrupt(digitalPinToInterrupt(A_PIN_R), readEncoder<'B','R'>, RISING);
-  attachInterrupt(digitalPinToInterrupt(B_PIN_R), readEncoder<'A','R'>, RISING);
+  // attachInterrupt(digitalPinToInterrupt(A_PIN_L), readEncoder<A_PIN_L, B_PIN_L, false, 'L'>, CHANGE);
+  // attachInterrupt(digitalPinToInterrupt(B_PIN_L), readEncoder<B_PIN_L, A_PIN_L, true, 'L'>, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(A_PIN_R), readEncoder<A_PIN_R, B_PIN_R, true, 'R'>, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(B_PIN_R), readEncoder<B_PIN_R, A_PIN_R, false, 'R'>, CHANGE);
+
+  // attachInterrupt(digitalPinToInterrupt(A_PIN_L), readEncoder<'B','L',true>, FALLING);
+  // attachInterrupt(digitalPinToInterrupt(B_PIN_L), readEncoder<'A','L',true>, FALLING);
+  // attachInterrupt(digitalPinToInterrupt(A_PIN_R), readEncoder<'B','R',true>, FALLING);
+  // attachInterrupt(digitalPinToInterrupt(B_PIN_R), readEncoder<'A','R',true>, FALLING);
   //Ultrasonic sensor pins setup
   // pinMode(US_TRIGGER_PIN, OUTPUT);
   // pinMode(US_ECHO_PIN, INPUT);
@@ -476,16 +518,26 @@ void setup() {
   // Wire.onRequest(onI2CRequest);
   
 }
+volatile int moreAThanB=0;
 //C++ template in order to avoid having to write 4 slightly different encoder pin detector methods. Keeps track of motors position.
-template<char AorBToCheck,char side>
+template<int changedPin, int otherPin, bool direction, char intToChange>
 void readEncoder(){
-  int pinToCheck=(AorBToCheck=='A' ? side=='L'? A_PIN_L : A_PIN_R  : side=='L' ? B_PIN_L : B_PIN_R);
-  if(digitalRead(pinToCheck)==(AorBToCheck=='B')){
-    side=='L' ? posL++ : posR--;
-    
+  volatile int* pos;
+  if(intToChange=='L') {
+    pos=&posL;
   } else {
-    side=='L' ? posL-- : posR++;
-    
+    pos=&posR;
+  }
+  bool rising=digitalRead(changedPin);
+  if(changedPin==A_PIN_R || changedPin==B_PIN_R) {
+    if(changedPin==A_PIN_R) moreAThanB=1;
+    else if(changedPin==B_PIN_R) moreAThanB=-1;
+  }
+  if((direction==digitalRead(otherPin)) ^ (!rising)) {
+
+    (*pos)--;
+  } else {
+    (*pos)++;
   }
 }
 void setLedStatus(int status){
@@ -563,7 +615,7 @@ void sendPacket() {
   int speed_t=speed;
   sendInt(speed_t); //22
   checkSum+=(speed_t%256);
-  int log_var_t=log_var;
+  int log_var_t=moreAThanB;
   sendInt(log_var_t); //26
   checkSum+=(log_var_t%256);
 
@@ -575,6 +627,8 @@ void sendPacket() {
 }
 //main loop
 void loop() {
+  ArduinoOTA.handle();
+
   int t=millis();
   BNO08x_RVC_Data heading;
   // log_var=t-heartBeatT0;
@@ -600,7 +654,8 @@ void loop() {
     // Serial.println("no data");
   }
   if (PiSerial.available()){
-    int command=PiSerial.read();  
+    Serial.println("available");
+    int command=PiSerial.read();
     if (conn_state==STATUS_CONNECTED){
       switch(command){
         case CMD_STEER:
@@ -633,11 +688,14 @@ void loop() {
         case CMD_SET_ARCCANCEL:
           arcCancel=(readInt()==1);
           break;
-        case CMD_SET_GYROERROR:
-          Serial.print("SET GYROEEROR ");
-          
+        case CMD_SET_FORWARD_LMIT:
+          forward_pwm_limit=readInt();
+          break;
+        case CMD_SET_BACKWARD_LMIT:
+          backward_pwm_limit=readInt();
+          break;
+        case CMD_SET_GYROERROR:          
           gyroError=readInt();
-          Serial.println(gyroError);
           break;
         case CMD_SET_HANDBRAKE_P:
           handbrakeP=readInt();
@@ -660,7 +718,6 @@ void loop() {
           break;
         case CMD_SET_VMODE:
         {
-          Serial.println("set vmode");
           int data=readInt();
           //checks if vmode is valid
           if(data==V_FORWARD || data==V_BACKWARD || data==V_BRAKE || data==V_STOP || data==V_UNREGULATED || data==V_HANDBRAKE){
@@ -668,6 +725,7 @@ void loop() {
               handbrakePos0=posR;
               handbrakeIntegral=0;
             }
+            integral=0;
             vMode=data;
             
           }
@@ -682,7 +740,6 @@ void loop() {
           Serial.println("smode");
           if(data==S_ARC) {
             isArcing=true;
-            arcCancel=false;
             Serial.println("sarc");
             Serial.println(absYaw);
           }

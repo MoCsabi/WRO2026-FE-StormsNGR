@@ -34,6 +34,8 @@ CMD_SET_SGYRO_LIMITS=34
 CMD_SET_SPCTRL_I=35
 CMD_SET_GYROERROR=36
 CMD_SET_ARCCANCEL=37
+CMD_SET_FWD_PWM_LIMIT=38
+CMD_SET_BWD_PWM_LIMIT=39
 
 # CMD_DATA_POSL=11
 # CMD_DATA_POSR=12
@@ -181,6 +183,8 @@ def sendCommand(command:int, param=None):
 def beat():
     sendCommand(CMD_HEARTBEAT)
     # log.info("speed: %s"%speed)
+def getLogVar()->int:
+    return logVar
 def getRawHeading()->int:
     return heading
 def getLPos()->int:
@@ -216,10 +220,10 @@ def setUnregulatedPower(power):
 def setGyroPD(p,d):
     sendCommand(CMD_SET_GYRO_P,int(p))
     sendCommand(CMD_SET_GYRO_D,int(d))
-def setSpeedcontrolPID(p,i,d):
+def setSpeedcontrolPID(p:int,i:float,d:int):
     sendCommand(CMD_SET_SPCTRL_P,int(p))
     sendCommand(CMD_SET_SPCTRL_D,int(d))
-    sendCommand(CMD_SET_SPCTRL_I,int(i))
+    sendCommand(CMD_SET_SPCTRL_I,int(i*100))
 def setHandbrakeP(p):
     sendCommand(CMD_SET_HANDBRAKE_P,int(p))
 def handBrake():
@@ -233,6 +237,11 @@ def setSGyroLimits(limit):
     sendCommand(CMD_SET_SGYRO_LIMITS,int(limit))
 def setGyroError(error):
     sendCommand(CMD_SET_GYROERROR, int(error))
-    log.debug("ge: %s"%error)
-def setArccancel():
+def setArccancel(blocking:bool=True):
     sendCommand(CMD_SET_ARCCANCEL, int(1))
+    if blocking:
+        while getSMode()==SMODE_ARC: sleep(0.005)
+def setForwardPWMLimit(pwmLimit):
+    sendCommand(CMD_SET_FWD_PWM_LIMIT, int(pwmLimit))
+def setBackwardPWMLimit(pwmLimit):
+    sendCommand(CMD_SET_BWD_PWM_LIMIT, int(pwmLimit))

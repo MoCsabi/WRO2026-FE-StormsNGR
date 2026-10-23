@@ -2,7 +2,7 @@
 import threading
 from time import sleep
 from RPi import GPIO
-BUZZ_PIN=5
+BUZZ_PIN=5 #5
 BUZZ_HZ=1000
 GPIO.setup(BUZZ_PIN,GPIO.OUT)
 GPIO.output(BUZZ_PIN,GPIO.LOW)

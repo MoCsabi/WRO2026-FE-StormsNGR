@@ -1,12 +1,14 @@
 # Mobility and Mechanical Design, Power and Sensor Architecture
+>TODO update images
+
 The robot is made up of a lot of different sensors, motors and two processing units, the ESP microcontroller and a Raspberry Pi. The car uses ackermann steering geometry and one DC motor through a motor controller with a differential gearbox we designed and printed from scratch. We had to create a lot of custom 3D printed components and even a custom interconnect panel to help with complicated wiring. The power to the robot is supplied by a 11.1V lithium battery and is later converted to 5V by a step-down module.
 
 ## List of components
 We installed a lot of sensors and other components on the car, here is a list of each of them with a link and some additional notes:
 - **Ackermann steering mechanism** and **base plates** [Ackermann Intelligent Car](https://www.hiwonder.com/collections/robotic-car/products/ackermann-steering-chassis?variant=40382428381271)
   - originally 270 x 197 mm, 960 g
-- **Steering servo** [Carson CS-3](https://www.amazon.co.uk/Carson-500502015-500502015-CS-3-Servo-3Kg-JR/dp/B0037Y93CW)
-  - Operating voltage 4.8 - 6 V, torque 31 Ncm, operating time 0.17 sec/60° dimensions : 38.5 x 19 x 32 mm, weight: 39 g
+- **Steering servo** [JX PDI-6208MG](https://sgmodell.hu/JX-PDI-6208MG-8-2kg-digitalis-fem-fogaskerekes-szervo)
+  - Operating voltage 4.8 - 6 V, torque 68 Ncm, operating time 0.08 sec/60° dimensions : 40.5 x 20.2 x 38 mm, weight: 62 g
 - **DC motor** [Hiwonder JGB37-520R30-12](https://www.hiwonder.com/products/hall-encoder-dc-geared-motor)
   -  Operating voltage 12V, torque 15 kg*cm max 3.2A, 280 RPM, 440 pulse-per-revolution encoder
 - **Single Board Computer** [Raspberry Pi 5 4GB](https://www.raspberrypi.com/products/raspberry-pi-5/?variant=raspberry-pi-5-4gb)
@@ -33,6 +35,8 @@ We installed a lot of sensors and other components on the car, here is a list of
   - Dimensions 38.6 x 38.6 x 34.8 mm, range 0.02-12 m, frequency 5-15 Hz, accuracy ±45 mm
 - **Camera** [Raspberry Pi Camera Module 3](https://www.raspberrypi.com/products/camera-module-3/)
   - FPC connector, standard lens, RAW10 color format, vertical FOV up to 41°, horizontal up to 66°
+- **1D laser distance sensor** [Tf-Luna](https://www.waveshare.com/tf-luna-lidar-range-sensor.htm)
+  -100Hz, 1 cm resolution
 - **Ball bearings**
   - 3 pieces of 7(inner diameter)x19x6 mm and 1 piece of 6(inner diameter)x12x4 mm
 - **USB-TTL bridge** [CP2102](https://www.ebay.com/itm/203604196200)
@@ -43,7 +47,7 @@ We installed a lot of sensors and other components on the car, here is a list of
 
 This section serves as an overview of the design philosophy of the robot. For more details about the actual driving and steering mechanism see [Drive](#drive), and for building instructions see [Building instructions](#building-instructions).
 
-Our robot utilizes ackermann steering geometry and differential drive. We have 3 decks, a bottom deck (or lower deck) for the servo, driving mechanism and the power supply. On the middle deck we have the Raspberry Pi, the main control unit coded in python, responsible for the main challenge logic, and the ESP microcontroller, the secondary control unit coded in C, responsible for receiving sensor data and controlling the motors. The LiDAR sensor is is also mounted here. The third deck is about half the size of the other decks, it houses things like the motor driver, the IMU, the display panel and the step-down PSU.
+Our robot utilizes ackermann steering geometry and differential drive. We have 3 decks, a bottom deck (or lower deck) for the servo, driving mechanism and the power supply. On the middle deck we have the Raspberry Pi, the main control unit coded in python, responsible for the main challenge logic, and the ESP microcontroller, the secondary control unit coded in C, responsible for receiving sensor data and controlling the motors. The LiDAR sensor is is also mounted here along with the 1D laser distance sensor. The third deck is about half the size of the other decks, it houses things like the motor driver, the IMU, the display panel and the step-down PSU.
 ![image showcasing the 3 decks on the robot](decks.png) ![image of the car with connections between components](conn_diagram.png)
 (Sketch that illustrates the connections between the different components of the robot)
 
@@ -60,7 +64,9 @@ The Inertial Measurement Unit, sometimes referred to as the gyro is responsible 
 ### LiDAR
 Arguably our most important sensor, a 2D 360° LiDAR sensor. The requirements when choosing the sensor were a range of at least 3m and an accuracy of 2-3 cm. Based on the available datasheets we chose the STL-19P from the D500 development kit. It came with an UART to USB converter board which was useful in the initial setup phase. It's a TOF (time-of-flight) LiDAR, meaning it spins a laser emitter really fast and compares the return time of the laser to the speed of light to calculate the travelled distance. We soon realized the scanning frequency (rotation speed) and ranging frequency (sample rate) are also critical parameters. The base scanning frequency was 10 Hz, so every angle's distance gets refreshed 10 times a second. On the default speed of the robot this translates to ~4-5 cm jumps between measurements. This is not ideal, as we use this sensor with the IMU to measure the distance from the front wall for example to start arcing at a specific point, and 5 cm deviations can lead serious problems. Thankfully this 10 Hz can be sped up to 15 Hz, which greatly reduces this problem, however introduces another. Since the sample rate of the sensor is a fixed 5000 Hz, with 15 Hz scanning frequency that means the angular resolution goes above 1° (360°*15Hz/5000Hz=1,08°), meaning not every degree gets refreshed every turn. This is compensated for in software, more details in the [Software Architecture and Obstacle Strategy documentation/Sensors and motors](/src/README.md#Sensors-and-motors). We also had to write our own library to parse the inputs of the sensor, more about this in the aforementioned documentation.
 
-This sensor is responsible for exploring the field, such as detecting walls and traffic signs. Combined with the IMU it can always tell the distance to the front wall, a function we heavily rely on.
+This sensor is responsible for exploring the field, such as detecting walls and traffic signs. Combined with the IMU it can always tell the distance to the front wall, a function we heavily rely on.  
+### Tf-Luna 1D laser distance sensor
+The main purpuse of this sensor is to give the robot up-to-date front wall distance data. This is necessary, because at higher speeds (~1+ cm/s, 3000 tick/s) the LiDAR's 15Hz measurement rate is simply not enough, as between every cycle the robot moves up to 5 cms, effectively adding an average error of 2.5 cm. The superior 100Hz rate of the Tf-Luna sensor eliminates this problem, in one direction. We chose to install it on the front of the robot since it's the direction we use most frequently and also the direction the robot moves in most frequently, resulting in faster changes.
 ### Camera
 With the aforementioned sensors only we are missing one crucial information: the color of the traffic signs in obstacle challenge. For this we had to get a camera. We use the Raspberry Pi Camera Module 3, for the ease of integration with the main control unit the Raspberry Pi. Currently we only use the camera for this purpose, to look at an area speicified by the LiDAR and average the pixels, then decide if it's more green or more red.
 ### Calibration and tests
@@ -83,6 +89,7 @@ The different connections used between the components of the robot and their hie
       - Motor driver 2x`PWM` **(PWM_1-GPIO 13, PWM_2-GPIO 16)**
       - Servo `PWM` **(Signal-GPIO 27)**
     - LiDAR `UART` **(TX-GPIO 15)** 
+    - Tf-Luna `I2C` **(DATA-GPIO 2, CLOCK-GPIO 3)**
     - Led&Key panel `Data, Strobe, Clock` **(DIO-GPIO 19, STB-GPIO 16, CLK-GPIO 13)**
     - Buzzer `Digital` **(+-GPIO 5)**
     - Camera `FFC`
@@ -91,6 +98,7 @@ The actual communication between the components is detailed in the [software doc
 ## Wiring diagrams
 ![full wiring diagram](wiring_diagram_full.jpg)  
 The complete wiring diagram of the robot, including the Raspberry Pi, the ESP, the two motors and the sensors.
+> TODO UPDATE
 
 The diagrams below serve more as a cabling guide, with the colored squares representing the cable colors on the robot.
 ### ESP microcontroller (NodeMCU) pinout with connections labeled:
@@ -126,20 +134,21 @@ The remaining components of the system operate at 5V, which we provide using a s
 A few of the robot's components, mainly sensors, operate at a 3.3V voltage level, but their power supply is provided by the controller (ESP/Pi) they are connected to.
 
 A simple explanation of the power supply hierarchy of our robot.
-- Battery `12V`, max. **6A**✅ [`55,73W`/72W]
-  - Step-down module `12V-->5V` max. **5A**✅ [`17,33W`/25W] 
+- Battery `12V`, max. **6A**✅ [`56.08W`/72W]
+  - Step-down module `12V-->5V` max. **5A**✅ [`17.68W`/25W] 
     - Steering servo `5V`, **200mA** (stall: 1,2A) [max. `6W`]
     - Raspberry Pi 5 `5V` (from USB-C, can supply `3.3V`), **~1200mA** [`6W`]
-      - LiDAR `5V`, **290mA** [`1,45W`]
+      - LiDAR `5V`, **290mA** [`1.45W`]
+      - Tf-Luna `5V` **75mA** [`0.35`]
       - Camera `5V` **200mA** (FFC) [`1W`]
-      - Led&Key Panel `3.3V`, **100mA** [`0,33W`]
-    - NodeMCU-32S `5V` (from **Vin** pin, can supply `3.3V`), **500mA** [`2,5W`]
-      - Inertial Measurement Unit `3.3V`, **5mA** [`0,02W`]
-      - Motor encoder `3.3V`, **10mA** [`0,03W`]
-  - Motor driver `12V`, max. **3,6A**✅ [`38,4W`/43,2W]
-    - DC motor `12V` **~1A** (stall: 3.2A) [max. `38,4W`]
+      - Led&Key Panel `3.3V`, **100mA** [`0.33W`]
+    - NodeMCU-32S `5V` (from **Vin** pin, can supply `3.3V`), **500mA** [`2.5W`]
+      - Inertial Measurement Unit `3.3V`, **5mA** [`0.02W`]
+      - Motor encoder `3.3V`, **10mA** [`0.03W`]
+  - Motor driver `12V`, max. **3,6A**✅ [`38.4W`/43.2W]
+    - DC motor `12V` **~1A** (stall: 3.2A) [max. `38.4W`]
 
-In the square brackets we calculated the maximum power consumption, which would happen if both the servos and the DC motor was stalling. As you can see we have more than enough power and current. We do have to be careful with stalling as this can cause the motors to melt-down. Short-circuiting can cause very high current that our jumper cables can't handle, causing them to melt. We have to watch out for these dangers as they and have caused long-term damage, we lost a servo and a DC motor this way.
+In the square brackets we calculated the maximum power consumption, which would happen if both the servos and the DC motor was stalling. As you can see we have more than enough power and current. We still do have to be careful with stalling as this can cause the motors to melt down. Short-circuiting can cause very high current that our jumper cables can't handle, causing them to melt. We have to watch out for these dangers as they can and have caused long-term damage, we lost a servo and a DC motor this way.
 ## Drive
 For steering, we utilize Ackerman steering geometry.
 In short, the inner wheel turn slightly more than the other, so the robot stays on the same arc without any slippage. Here's an image from the [Hiwonder documentation](https://drive.google.com/drive/folders/11k0gbcZExI4076KJ1d_CCIdDlopuYUwO) that illustrates the principle:

@@ -384,6 +384,8 @@ Although the robot is able to complete these turns in one arc, sometimes previou
 
 ![Turn correction illustrated](corner_corr.png)
 
+This manouver is very time-intensive, so we did our best to eliminate it. The issue is when the robot has to complete a switchlane int he straight section, that causes it to finish a little later than it otherwise would, making the upcoming tight corner turn impossible (see the image above). We avoid this by calculating ahead. If the robot sees that a tight corner is coming up followed by a straight section where a switchlane will be necessary it knows it won't be able to finish it in time, making the following turncorner risky. In this case the robot "cheats" a bit with the first corner turn, finishing it a bit sooner or a bit later (not at 90°) to make the following switchlane easier to complete.
+
 We only have to do a switchlane if there are two different colored traffic signs in the section. Even though there could be two of signs of the same color we optimize our path to turn in to the lane which satisfies both signs, as described in the framework documentation under `getFirstTurnTarget()`, eliminating the need for a mid-section switchlane in this case. If we do need to switch lanes we switch to the optimal lane calculated by `calcLaneFromObs()`, finishing the sector.
 
 Here's what an optimized lap might look like, showcasing many different optimizations:  

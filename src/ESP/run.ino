@@ -7,7 +7,7 @@
 #include <ArduinoOTA.h>
 
 const char *ssid = "stormsNGR";
-const char *password = "";
+const char *password = "12345678";
 
 #define B_PIN_L 36 //Left motor encoder A pin
 #define A_PIN_L 39 //Left motor encoder B pin
@@ -28,8 +28,8 @@ const char *password = "";
 #define LIDAR_PWM_PIN 21 //LiDAR pwm speed control pin (18)
 
 
-#define spwm_freq 50 //servo PWM frequency
-#define spwm_res 12 //servo PWM resolution (2^12)
+#define spwm_freq 330 //servo PWM frequency
+#define spwm_res 14//servo PWM resolution (2^14)
 // #define spwm_channel 0 //servo PWM channel
 #define motor_pwm_freq 19000 //motor PWM frequency
 
@@ -113,9 +113,9 @@ volatile int kPY=5;
 volatile int kIY=0;
 volatile int kDY=0;
 
-volatile int SERVO_MIN=219; //maximum safe left state servo PWM
-volatile int SERVO_MAX=417; //maximum safe right state servo PWM
-volatile int SERVO_CENT=291; //calibrated central state servo PWM
+volatile int SERVO_MIN=4400; //maximum safe left state servo PWM
+volatile int SERVO_MAX=9750; //maximum safe right state servo PWM
+volatile int SERVO_CENT=6518; //calibrated central state servo PWM
 
 int conn_state=STATUS_SYNCING;
 int heartBeatT0=0; //last heartbeat time

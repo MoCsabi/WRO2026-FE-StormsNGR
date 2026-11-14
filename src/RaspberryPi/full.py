@@ -1,6 +1,7 @@
 #! /usr/bin/python
 '''The main python file, it contains the code for both robot runs and helper functions'''
 from dataclasses import dataclass
+import dataclasses
 import json
 from math import acos, asin, atan2, cos, degrees, pi, atan, ceil, copysign, floor, sin, sqrt, tan
 import os
@@ -94,6 +95,8 @@ class Object:
     relToAbsX:int=-1
     relToAbsY:int=-1
     angle:float=-1
+    height:int=10
+    ground_level:int=0
     '''The rotation of the object (relative to the walls)'''
     def getCenter(self)->tuple[int,int]:
         '''Getter method of 'center' property
@@ -114,30 +117,32 @@ class Object:
         '''Returns this object converted to absolute position'''
         objStartAbs=[self.objStart[0]+self.relToAbsX,self.objStart[1]+self.relToAbsY]
         objEndAbs=[self.objEnd[0]+self.relToAbsX,self.objEnd[1]+self.relToAbsY]
-        return Object(objStartAbs,objEndAbs)
+        return Object(objStartAbs,objEndAbs, height=self.height, angle=self.angle, ground_level=self.ground_level)
     def toRelAngle(self):
         relStartAngle,startDist=XyToAngular(*self.objStart)
         relEndAngle,endDist=XyToAngular(*self.objEnd)
         relStartAngle-=self.angle
         relEndAngle-=self.angle
-        return Object(angularToXy(relStartAngle,startDist),angularToXy(relEndAngle,endDist),angle=0)
+        return Object(angularToXy(relStartAngle,startDist),angularToXy(relEndAngle,endDist),angle=0, height=self.height, ground_level=self.ground_level)
     def toRelative(self):
         '''Returns this object converted to relative position'''
         objStartRel=[self.objStart[0]-self.relToAbsX,self.objStart[1]-self.relToAbsY]
         objEndRel=[self.objEnd[0]-self.relToAbsX,self.objEnd[1]-self.relToAbsY]
-        return Object(objStartRel,objEndRel)
-    
+        return Object(objStartRel,objEndRel, height=self.height, angle=self.angle, ground_level=self.ground_level)
+
 CAMERA_ANGLE_OFFSET=0 #how much (degrees) the camera is rotated to the left relative to the robot
-HORIZONTAL_FOV=53.1
+HORIZONTAL_FOV=58.1
 VERTICAL_FOV=41.49
 CAMERA_VERTICAL_TILT=9.5 #10.76
 cameraPos=(0,-4,19.5)
-GREEN=1
+C_GREEN=1
 '''Constant for the color Green. Used for obstacle color detection and storing.'''
-RED=2
+C_RED=2
 '''Constant for the color Red. Used for obstacle color detection and storing.'''
+C_NONE=0
 RMG_BORDER=10 #red-green
-
+RMG_DIFF_BORDER=20
+VALID_COUNT_BORDER=800
 ANALYSE_NTH_PIXELS=4
 '''Analyse every this many pixel'''
 
@@ -154,10 +159,79 @@ def mapPointToCam(point:tuple[int,int,int])-> tuple:
     if px>=640: px=639
     if py<0: py=0
     if py>=480: py=479
-    return (px,py)
+    return (round(px),round(py))
+@dataclass
+class CamInstruction:
+    instruction:str
+    object:Object
 camQueue = mp.Queue(10)
+def encompassObj(obj:Object)->tuple[int,int,int,int]:
+    z0=obj.ground_level
+    z1=obj.height+obj.ground_level
+    x0=obj.objStart[0]
+    x1=obj.objEnd[0]
+    y0=obj.getCenter()[1]
+    y1=y0+5
+    return findEncompassingRect([
+        #BOTTOM SQUARE - top view
+        mapPointToCam( (x0,y0,z0) ), #bl
+        mapPointToCam( (x1,y0,z0) ), #br
+        mapPointToCam( (x0,y1,z0) ), #tl
+        mapPointToCam( (x1,y1,z0) ), #tr
+        #TOP SQUARE - top view
+        mapPointToCam( (x0,y0,z1) ), #bl
+        mapPointToCam( (x1,y0,z1) ), #br
+        mapPointToCam( (x0,y1,z1) ), #tl
+        mapPointToCam( (x1,y1,z1) ), #tr
+    ])
+def findEncompassingRect(points:list[tuple[int,int]])->tuple[int,int,int,int]:
+    left=10000
+    right=-1
+    top=10000
+    bot=-1
+    for p in points:
+        if p[0]<left: left=p[0]
+        if p[0]>right: right=p[0]
+        if p[1]<top: top=p[1]
+        if p[1]>bot: bot=p[1]
+    return (left,right,top,bot)
+cam_found_modified_sign:bool=False
+def camLog(ptr, points:tuple[int,int,int,int], rmg):
+    data = {
+        "name": f"snapshot{ptr}.png",
+        "points": ((points[0],points[2]),(points[1],points[3])),
+        "rmg": rmg,
+        "id": ptr,
+        "time": time()
+    }
 
+    jdata = json.dumps(data)
+
+    with open(directory / "logs/img.stormslogtemp","w") as f:
+        f.write(jdata)
+        f.flush()
+            
+    with open(directory / "logs/img.stormslog","a") as f:
+        f.write(jdata)
+        f.write("\n")
+        f.flush()
+    
+def camCropAvg(rect,img):
+    imgCut = img[rect[2]:rect[3],rect[0]:rect[1]]
+    #filter out whiteand black
+    hsv = cv2.cvtColor(imgCut, cv2.COLOR_BGR2HSV)
+
+    # HSV ranges use H=0..179 and S/V=0..255 in OpenCV.
+    black_mask = cv2.inRange(hsv, (0, 0, 0), (179, 255, 50))
+    white_mask = cv2.inRange(hsv, (0, 0, 100), (179, 50, 255))
+    color_mask = cv2.bitwise_not(cv2.bitwise_or(black_mask, white_mask))
+    filtered = cv2.bitwise_and(imgCut, imgCut, mask=color_mask)
+    cv2.imwrite("debug_crop.png", imgCut)
+    cv2.imwrite("debug_mask.png", color_mask)
+    cv2.imwrite("debug_filtered.png", filtered)
+    return cv2.mean(imgCut,mask=color_mask),cv2.countNonZero(color_mask)
 def camProcess(queue) -> None:
+    global cam_found_modified_sign
     cam = Picamera2()
 
     mode = cam.sensor_modes[1]
@@ -171,77 +245,86 @@ def camProcess(queue) -> None:
     cam.start()
     ptr=0
     while True:
-        data:Object|str = queue.get()
-        if data == "close":
+        instr:CamInstruction = queue.get()
+        if instr.instruction == "close":
             cam.close()
             break
-        #epic calculation
-        #data: topleft x,y botright x,y
-        obj=data.toRelAngle()
-        topLeft=(*obj.objStart,10)
-        botRight=(*obj.objEnd,0)
         ptr+=1
         cam.capture_file("logs/imgs/snapshot%s.png"%ptr)
         img = cv2.imread("logs/imgs/snapshot%s.png"%ptr)
-        imgTopLeft=mapPointToCam(topLeft) #0,1
-        imgTopLeft=(max(0,imgTopLeft[0]-5),imgTopLeft[1])
-        imgBotRight=mapPointToCam(botRight) #2,3
-        imgBotRight=(min(639,imgBotRight[0]+5),imgBotRight[1])
-        imgCut = img[round(imgTopLeft[1]):round(imgBotRight[1]),round(imgTopLeft[0]):round(imgBotRight[0])]
-
-        color=cv2.mean(imgCut)
-        rmg=color[2]-color[1] #BGR
-
-
-        # rect=cv2.rectangle(img,(int(imgTopLeft[0]),int(imgTopLeft[1])),(int(imgBotRight[0]),int(imgBotRight[1])),(255,0,0),2)
-        # rect=cv2.putText(rect,"rmg: %s"%rmg,(int(imgTopLeft[0])+10,int(imgTopLeft[1])-30),cv2.FONT_HERSHEY_COMPLEX,1,(200,0,0))
-        # cv2.imwrite(("rect%s.png"%ptr),rect)
-        queue.put((rmg,color[0]))
-
-        data = {
-            "name": f"snapshot{ptr}.png",
-            "points": [imgTopLeft,imgBotRight],
-            "rmg": rmg,
-            "id": ptr,
-            "time": time()
-        }
-
-        jdata = json.dumps(data)
-
-        with open(directory / "logs/img.stormslogtemp","w") as f:
-            f.write(jdata)
-            f.flush()
-        
-        with open(directory / "logs/img.stormslog","a") as f:
-            f.write(jdata)
-            f.write("\n")
-            f.flush()
-
-    #stop camera
+        if instr.instruction=="small": #undetected, can only be small or nothing
+            obj=instr.object
+            rect=encompassObj(obj)
+            color,valid_cnt=camCropAvg(rect,img)
+            if color[0]>170:
+                queue.put((C_NONE,int(color[0])))
+                camLog(ptr,rect,color[0])
+            else:
+                rmg=color[2]-color[1] #BGR
+                queue.put((C_RED if rmg>RMG_BORDER else C_GREEN, int(rmg)))
+                camLog(ptr,rect,color[0])
+        else: #small big or normal
+            if cam_found_modified_sign:
+                obj=instr.object
+                rect=encompassObj(obj)
+                color,valid_cnt=camCropAvg(rect,img)
+                rmg=color[2]-color[1] #BGR
+                queue.put((C_RED if rmg>RMG_BORDER else C_GREEN, int(rmg)))
+                camLog(ptr,rect,rmg)
+            else: #still looking #SR
+                obj_s=dataclasses.replace(instr.object, height=5)
+                obj_n=instr.object
+                obj_l=dataclasses.replace(instr.object, height=15)
+                
+                rect_s=encompassObj(obj_s)
+                color_s,valid_cnt_s=camCropAvg(rect_s,img)
+                rmg_s=color_s[2]-color_s[1]
+                c_small=C_RED if rmg_s>RMG_BORDER else C_GREEN
+                
+                rect_n=encompassObj(obj_n)
+                rect_n=(rect_n[0],rect_n[1],rect_n[2],rect_s[2])
+                color_n,valid_cnt_n=camCropAvg(rect_n,img)
+                rmg_n=color_n[2]-color_n[1]
+                if valid_cnt_n<VALID_COUNT_BORDER:
+                    #small found!
+                    cam_found_modified_sign=True
+                    queue.put((3-c_small, int(valid_cnt_n))) #flipped, modified found
+                    camLog(ptr,rect_s,rmg_s)
+                    continue
+                #is at least normal size
+                rect_l=encompassObj(obj_l)
+                rect_l=(rect_l[0],rect_l[1],rect_l[2],rect_n[2])
+                color_l,valid_cnt_l=camCropAvg(rect_n,img)
+                rmg_l=color_l[2]-color_l[1]
+                if valid_cnt_l<VALID_COUNT_BORDER:
+                    #normal found
+                    queue.put((c_small,int(valid_cnt_l)))
+                    camLog(ptr,rect_n,rmg_s)
+                else:
+                    #LARGE found
+                    cam_found_modified_sign=True
+                    queue.put((3-c_small,int(valid_cnt_l))) #flipped (modified)
+                    camLog(ptr,rect_l,rmg_s)
 
 camP = mp.Process(target=camProcess, args=(camQueue,))
 os.environ["LIBCAMERA_LOG_LEVELS"] = "*:3"
 camP.start()
 def closeCam():
-    camQueue.put("close")
+    camQueue.put(CamInstruction("close",None))
     camP.join()
-
-def detectObjectColor(obj:Object)->int:
-    '''Checks the color of the object using the RaspberryPi camera by communicating with the other core'''
-    if obj.empty: return RED
-    data=obj
+def detectObjectColor(obj:Object, small_only:bool=False)->int:
+    '''Checks the color of the object using the RaspberryPi camera by communicating with the other core
+    small_only: true if lidar didnt detect anything, can be small or nothing
+    '''
+    if obj.empty: return C_RED
     t0=time.time()
-    camQueue.put(data)
-    rmg,blue=camQueue.get()
+    instr =CamInstruction("small" if small_only else "normal", obj)
+    camQueue.put(instr)
+    color,bgr=camQueue.get()
     #log.debug("topleft %s br %s imgtl %s imgbr %s"%(topLeft,botRight,imgTopLeft,imgBotRight))
-    rmg=int(rmg)
-    log.debug("RMG: %s blue %s"%(rmg,blue))
+    log.debug(f"cam process returned color {color} (1:GREEN, 2:RED, 0:NONE) data {bgr}")
     log.debug("dtime: %s"%(time.time()-t0))
-    if rmg>RMG_BORDER:
-        col=RED
-    else: col=GREEN
-    log.info(col)
-    return col
+    return color
 from LedAndKey import *
 from ESP32_Service import packetCount
 from ESP32_Service import *
@@ -263,7 +346,7 @@ direction:int=1
 
 # TODO: Pixy camera currently not in use
 
-colorMatrixPrequel = [RED,GREEN]
+colorMatrixPrequel = [C_RED,C_GREEN]
 getColorCounter = 1
 
 
@@ -277,7 +360,7 @@ def isInsideCamArea(x,y):
     return True #currently camera cutoff is not in use
     return x<CAM_RIGHT_CUTOFF and x>CAM_LEFT_CUTOFF and y>CAM_TOP_CUTOFF and y<CAM_BOT_CUTOFF
 
-defaultColor=RED
+defaultColor=C_RED
 ''''''
 def checkColor()->int:
     '''Checks the color of the closest obstacle outside the cutoff area using the Pixy camera.'''
@@ -315,7 +398,7 @@ def checkColor()->int:
             detected=list(temp_pixyObjects[i])
             detected[5]=True
             temp_pixyObjects[i]=tuple(detected)
-            log.info("Final color %s"% "GREEN" if b.m_signature==GREEN else "RED")
+            log.info("Final color %s"% "GREEN" if b.m_signature==C_GREEN else "RED")
             pixyObjects=temp_pixyObjects
             return b.m_signature
     else:
@@ -464,7 +547,7 @@ def waitLuna(dist:float, decreasing:bool=True, alarm=True):
     log.debug(f"waitLuna out, target: {dist}, actual: {actual_dist}")
 
 def getAbsX(outer=True)->int:
-    '''Returns the robot distance from the outer wall'''
+    '''Returns the robot distance from the left wall'''
     if direction==(1 if outer else -1):
         return readAbsLidar(-90)
     else:
@@ -532,7 +615,7 @@ def findNearestObject(botLeft:tuple,topRight:tuple):
     rightmostPoint=(nearestPoint[0]+5,nearestPoint[1])
     if nearestPoint[0]==1000000: nearestPoint=(-1,-1)
     log.debug(f"final nearestpoint: {nearestPoint}")
-    return Object(nearestPoint,rightmostPoint,angle=getHeading())
+    return Object(nearestPoint,rightmostPoint,angle=getHeading(), height=10)
 
 def findNearestObjectAbs(botLeft:tuple,topRight:tuple, back:bool=True, outer:bool=True, overrideAbsX=None, overrideAbsY=None):
     '''Finds the nearest object inside defined rectangle (bottom left and top right) relative to the bottom left corner of the section
@@ -937,7 +1020,7 @@ def openChallengeRun():
     waitLuna(180)
     t0=time.time()
     stop()
-    camQueue.put("close")
+    closeCam()
     log.critical("TIME: %s"%(time.time()-t00))
 
 def openZeroLidar():
@@ -1007,7 +1090,7 @@ def openZeroLidar():
     while(time.time()-t0<2):
         stop() #ABS
         sleep(0.02)
-    camQueue.put("close")
+    closeCam()
     log.critical("TIME: %s"%(time.time()-t00))
 
 lane:float=0
@@ -1323,10 +1406,10 @@ def turnCorner(target, turnCorrection=0, detection_careful=False, cheat_arc=Fals
 
 def calcLaneFromObs(signColumn, signColor, wide_avoid=False):
     log.debug(f"calcLaneFromObs signColumn {signColumn}, signColor {signColor}")
-    if wide_avoid: return LANE_LEFT if signColor==GREEN else LANE_RIGHT
-    if signColor==GREEN:
+    if wide_avoid: return LANE_LEFT if signColor==C_GREEN else LANE_RIGHT
+    if signColor==C_GREEN:
         return LANE_LEFT if signColumn==-1 else LANE_LEFT_OBS
-    elif signColor==RED:
+    elif signColor==C_RED:
         return LANE_RIGHT if signColumn==1 else LANE_RIGHT_OBS
     else:
         log.warn(f"Illegal obs code: column: {signColumn}, color: {signColor}")
@@ -1759,7 +1842,7 @@ REAR_LEFT_X=15
 REAR_LEFT_Y=8
 def parkingManouver(firstSignColor):
     global direction, heading0
-    if firstSignColor==(GREEN if direction==DIRECTION_LEFT else RED): #has to avoid first one
+    if firstSignColor==(C_GREEN if direction==DIRECTION_LEFT else C_RED): #has to avoid first one
         turnCorner(target= TURNTARGET_INNER) #avoid first one, to inner lane
         waitLidarBehind(105,decreasing=False)
         switchLane(LANE_RIGHT_OBS if direction==DIRECTION_LEFT else LANE_LEFT_OBS, forceWallDir=FORCE_INSIDE_WALL, blind_cm=15) #outer obs
@@ -1858,6 +1941,8 @@ def findFirstObsInNextSection(has_parking=False):
     log.debug(f"findFirstObsInNextSection: col: {signColumn} row: {signRow}")
     return signColumn,signRow
 
+found_modified_sign=False
+
 def obstacleChallengeRun(skip_initloop=False):
     global direction, startTime, parkPos, parkSide, rightLaneOffset, leftLaneOffset, lane, trafficSignMatrix, section, defaultSpeed, defaultTurnSpeed, targetLeftWallDist, in_initloop
     log.info("Obstacle challenge run started")
@@ -1897,7 +1982,7 @@ def obstacleChallengeRun(skip_initloop=False):
             
             signColor=detectObjectColor(signObject)
             trafficSignMatrix[0][2]=-signColor #always on the left
-        if signObject.empty or signColor==RED:
+        if signObject.empty or signColor==C_RED:
             arc(0,steep=True, percent=60)
             setTempo(defaultSpeed)
             lane=LANE_RIGHT_OBS
@@ -1922,7 +2007,7 @@ def obstacleChallengeRun(skip_initloop=False):
             trafficSignMatrix[0][row]=signColor #always on the right
         else:
             signColor=0
-        if signColor==GREEN or signObj.empty:
+        if signColor==C_GREEN or signObj.empty:
             setTempo(defaultSpeed)
             go(42)
             waitCM(25)
@@ -1930,7 +2015,7 @@ def obstacleChallengeRun(skip_initloop=False):
             lane=LANE_LEFT_OBS
             targetLeftWallDist=40
             go(defaultSpeed,0)
-        elif signColor==RED:
+        elif signColor==C_RED:
             setTempo(defaultSpeed)
             arc(90,steep=True)
             go(90)
@@ -1947,12 +2032,14 @@ def obstacleChallengeRun(skip_initloop=False):
         log.section = section
         
         signColumn, signRow=findFirstObsInNextSection()
-        if signRow==0: #obstacle in first lane
+        if signRow==0 or signRow==2: #SURP #similar behavior
             turnCorner(target=TURNTARGET_INNER_OBS if (signColumn*direction==1) else TURNTARGET_OUTER_OBS, detection_careful=True)
-            signObj=findNearestObjectAbs((20,80),(80,120))
-            sx,sy=signObj.toAbsolute().center
-            signColor=detectObjectColor(signObj)
-            signColumn=-1 if sx<50 else 1
+            if signRow==2: pass #check first row for modified sign, set signColor, signColumn, if not found make it so switchlane goes straight (same lane)
+            else:
+                signObj=findNearestObjectAbs((20,80),(80,120))
+                sx,sy=signObj.toAbsolute().center
+                signColor=detectObjectColor(signObj)
+                signColumn=-1 if sx<50 else 1
             
             trafficSignMatrix[section%4][signRow]=signColumn*signColor #store
             # setTempo(defaultSpeed)
@@ -1983,7 +2070,7 @@ def obstacleChallengeRun(skip_initloop=False):
                 setTempo(defaultSpeed)
                 waitLidarBehind(130)
                 correctWallDist()
-        else:
+        elif signRow==1: #SURP , but no changes
             turn_careful= lane==LANE_RIGHT*direction and signRow==1
             turnCorner(target=TURNTARGET_INNER_OBS if (signColumn*direction==1) else TURNTARGET_OUTER_OBS, detection_careful=False, profile=TURNCORNER_PROFILE_CAREFUL if turn_careful else TURNCORNER_PROFILE_DETECTION) #optimized turncorner
             #take picture from here
@@ -1998,6 +2085,8 @@ def obstacleChallengeRun(skip_initloop=False):
             newLane=calcLaneFromObs(signColumn, signColor)
             setTempo(defaultSpeed)
             switchLane(newLane,start_slow=turn_careful)
+        elif signRow==-1: #SURP #check everything...
+            pass
     ##EARLY DETECT
         
     go(0)
@@ -2134,13 +2223,13 @@ def testAdvancedStrategyInner():
         signObj=findNearestObjectAbs((30,180),(70,220),back=False)
         sx, sy = signObj.toAbsolute().center
         col=detectObjectColor(signObj)
-        switchLane(LANE_LEFT if col==GREEN else LANE_RIGHT, insideWall=False)
+        switchLane(LANE_LEFT if col==C_GREEN else LANE_RIGHT, insideWall=False)
     else: #there is something
 
         if signRow==0:
             col=detectObjectColor(signObj)
             go(defaultSpeed,0)
-            turnCorner(target=INNER_LANE if (col==GREEN and direction==DIRECTION_LEFT) else OUTER_LANE, turnCorrection=10 if (lane==LANE_LEFT) else -10)
+            turnCorner(target=INNER_LANE if (col==C_GREEN and direction==DIRECTION_LEFT) else OUTER_LANE, turnCorrection=10 if (lane==LANE_LEFT) else -10)
 
             #last row detection
             waitLidarBehind(100,decreasing=False)
@@ -2150,14 +2239,14 @@ def testAdvancedStrategyInner():
             #lekezelni ha nincs
             sx, sy = signObj.toAbsolute().center
             col=detectObjectColor(signObj)
-            switchLane(LANE_LEFT if col==GREEN else LANE_RIGHT, insideWall=True)
+            switchLane(LANE_LEFT if col==C_GREEN else LANE_RIGHT, insideWall=True)
         elif signRow==1:
             defaultSpeed=slowSpeed
             #slow turn!!
             turnCorner(INNER_OBS_LANE if signColumn==1 else OUTER_OBS_LANE)
             signObj=findNearestObjectAbs((20,130),(80,170),back=True)
             col=detectObjectColor(signObj)
-            switchLane(LANE_LEFT if col==GREEN else LANE_RIGHT, insideWall=True)
+            switchLane(LANE_LEFT if col==C_GREEN else LANE_RIGHT, insideWall=True)
 
             stop()
             pass
@@ -2184,7 +2273,7 @@ def testAdvancedStrategyOuter():
             #letárolni!^^
             sx, sy = signObj.toAbsolute().center
             col=detectObjectColor(signObj)
-            switchLane(LANE_LEFT if col==GREEN else LANE_RIGHT, insideWall=True)
+            switchLane(LANE_LEFT if col==C_GREEN else LANE_RIGHT, insideWall=True)
     else:
         log.debug(f"found in {signColumn} {signRow}, target: {INNER_OBS_LANE if signColumn==-1 else OUTER_OBS_LANE}")
         defaultSpeed=slowSpeed
@@ -2193,17 +2282,17 @@ def testAdvancedStrategyOuter():
             waitLidarBehind(80,decreasing=False)
         signObj=findNearestObjectAbs((20,90),(80,170),back=True)
         col=detectObjectColor(signObj)
-        target_lane=LANE_LEFT if col==GREEN else LANE_RIGHT
+        target_lane=LANE_LEFT if col==C_GREEN else LANE_RIGHT
         switchLane(target_lane, insideWall=False, turnCorrection=-15*target_lane)
         if signRow==0:
             signObj=findNearestObjectAbs((30,180),(70,220),back=False)
             if(not signObj.empty):
                 #problem...
                 col=detectObjectColor(signObj)
-                if(col==GREEN and lane==LANE_LEFT or col==RED and lane==LANE_RIGHT):
+                if(col==C_GREEN and lane==LANE_LEFT or col==C_RED and lane==LANE_RIGHT):
                     correctWallDist(-direction)
                 else:
-                    switchLane(LANE_LEFT if col==GREEN else LANE_RIGHT,insideWall=True)
+                    switchLane(LANE_LEFT if col==C_GREEN else LANE_RIGHT,insideWall=True)
                 # stop()
                 # go(-defaultSpeed,0)
                 # waitAbsLidar(0,192,decreasing=False)
@@ -2231,19 +2320,31 @@ def testHalfCircle(dir=1):
     go(3000)
     arc(180*dir,steep=True)
     stop()
+def mockObject(center:tuple[float,float], height:int, startHeight:int=0, back:bool=True, outer:bool=True)->Object:
+    return Object(
+        (center[0]-2.5, center[1]-2.5),
+        (center[0]+2.5, center[1]-2.5),
+        height=height,
+        ground_level=startHeight,
+        relToAbsX=getAbsX(outer=outer),
+        relToAbsY=getAbsY(back=back),
+        angle=getHeading()
+    ).toRelative()
 def testRun():
     '''Test run used for testing'''
     global pilotHeadingTarget
     global trafficSignMatrix
-    global heading0
+    global heading0, cam_found_modified_sign
     global parkPos, parkSide, section, lane
     global leftLaneOffset, rightLaneOffset,defaultSpeed,direction,targetLeftWallDist, CAMERA_ANGLE_OFFSET, defaultTurnSpeed, fastSpeed
     initLoop(open=False)
-    setTempo(3000)
-    go(0)
-    waitLuna(50)
-    arc(90)
-    stop()
+    direction=DIRECTION_RIGHT
+    sleep(2)
+    while True:
+        for i in range(5):
+            log.info(f"color: {detectObjectColor(mockObject((20,100),10,0),small_only=False)}")
+            sleep(1)
+        cam_found_modified_sign=False
     
 def secondday():
     initLoop(open=False)
@@ -2263,7 +2364,7 @@ def secondday():
         stop()
         utas=findNearestObjectAbs((20,180),(80,220))
         utas_sz=detectObjectColor(utas)
-    if utas_sz==RED:
+    if utas_sz==C_RED:
         log.debug("RED")
         utas=utas.toAbsolute()
         log.debug(utas.center[0])
@@ -2312,7 +2413,7 @@ match run_type:
 
 stop()
 #END
-camQueue.put("close")
+closeCam()
 sleep(1)
 log.critical("__EXIT__program end")
 os._exit(1)

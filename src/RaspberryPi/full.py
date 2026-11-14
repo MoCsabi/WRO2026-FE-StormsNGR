@@ -88,9 +88,9 @@ def XyToAngular(x:int,y:int)->tuple[float,float]:
 @dataclass
 class Object:
     '''Dataclass representing a detected object'''
-    objStart:tuple[float,float]
+    objStart:tuple[float,float]=(-1,-1)
     '''The leftmost point of the object'''
-    objEnd:tuple[float,float]
+    objEnd:tuple[float,float]=(-1,-1)
     '''The rightmost point of the object'''
     relToAbsX:int=-1
     relToAbsY:int=-1
@@ -164,6 +164,9 @@ def mapPointToCam(point:tuple[int,int,int])-> tuple:
 class CamInstruction:
     instruction:str
     object:Object
+    not_modified_sign:bool
+    modified_sign:bool
+    
 camQueue = mp.Queue(10)
 def encompassObj(obj:Object)->tuple[int,int,int,int]:
     z0=obj.ground_level
@@ -219,17 +222,9 @@ def camLog(ptr, points:tuple[int,int,int,int], rmg):
 def camCropAvg(rect,img):
     imgCut = img[rect[2]:rect[3],rect[0]:rect[1]]
     #filter out whiteand black
-    hsv = cv2.cvtColor(imgCut, cv2.COLOR_BGR2HSV)
-
-    # HSV ranges use H=0..179 and S/V=0..255 in OpenCV.
-    black_mask = cv2.inRange(hsv, (0, 0, 0), (179, 255, 50))
-    white_mask = cv2.inRange(hsv, (0, 0, 100), (179, 50, 255))
-    color_mask = cv2.bitwise_not(cv2.bitwise_or(black_mask, white_mask))
-    filtered = cv2.bitwise_and(imgCut, imgCut, mask=color_mask)
-    cv2.imwrite("debug_crop.png", imgCut)
-    cv2.imwrite("debug_mask.png", color_mask)
-    cv2.imwrite("debug_filtered.png", filtered)
-    return cv2.mean(imgCut,mask=color_mask),cv2.countNonZero(color_mask)
+    return cv2.mean(imgCut)
+def respond(queue,color,found_modified,log_data):
+    queue.put((color,found_modified,log_data))
 def camProcess(queue) -> None:
     global cam_found_modified_sign
     cam = Picamera2()
@@ -255,21 +250,21 @@ def camProcess(queue) -> None:
         if instr.instruction=="small": #undetected, can only be small or nothing
             obj=instr.object
             rect=encompassObj(obj)
-            color,valid_cnt=camCropAvg(rect,img)
-            if color[0]>170:
-                queue.put((C_NONE,int(color[0])))
+            color=camCropAvg(rect,img)
+            if (color[0]>170 or instr.not_modified_sign) and not instr.modified_sign:
+                respond(queue,C_NONE,False,color[0])
                 camLog(ptr,rect,color[0])
             else:
                 rmg=color[2]-color[1] #BGR
-                queue.put((C_RED if rmg>RMG_BORDER else C_GREEN, int(rmg)))
+                respond(queue,C_GREEN if rmg>RMG_BORDER else C_RED,True,rmg) #flipped
                 camLog(ptr,rect,color[0])
         else: #small big or normal
-            if cam_found_modified_sign:
+            if instr.not_modified_sign:
                 obj=instr.object
                 rect=encompassObj(obj)
-                color,valid_cnt=camCropAvg(rect,img)
+                color=camCropAvg(rect,img)
                 rmg=color[2]-color[1] #BGR
-                queue.put((C_RED if rmg>RMG_BORDER else C_GREEN, int(rmg)))
+                respond(queue,C_RED if rmg>RMG_BORDER else C_GREEN,False,rmg)
                 camLog(ptr,rect,rmg)
             else: #still looking #SR
                 obj_s=dataclasses.replace(instr.object, height=5)
@@ -277,33 +272,32 @@ def camProcess(queue) -> None:
                 obj_l=dataclasses.replace(instr.object, height=15)
                 
                 rect_s=encompassObj(obj_s)
-                color_s,valid_cnt_s=camCropAvg(rect_s,img)
+                color_s=camCropAvg(rect_s,img)
                 rmg_s=color_s[2]-color_s[1]
                 c_small=C_RED if rmg_s>RMG_BORDER else C_GREEN
                 
                 rect_n=encompassObj(obj_n)
                 rect_n=(rect_n[0],rect_n[1],rect_n[2],rect_s[2])
-                color_n,valid_cnt_n=camCropAvg(rect_n,img)
+                color_n=camCropAvg(rect_n,img)
                 rmg_n=color_n[2]-color_n[1]
-                if valid_cnt_n<VALID_COUNT_BORDER:
+                if abs(rmg_n-rmg_s)>RMG_DIFF_BORDER or instr.modified_sign:
                     #small found!
-                    cam_found_modified_sign=True
-                    queue.put((3-c_small, int(valid_cnt_n))) #flipped, modified found
+                    respond(queue,3-c_small,True,rmg_n-rmg_s) #flipped color
                     camLog(ptr,rect_s,rmg_s)
                     continue
                 #is at least normal size
                 rect_l=encompassObj(obj_l)
                 rect_l=(rect_l[0],rect_l[1],rect_l[2],rect_n[2])
-                color_l,valid_cnt_l=camCropAvg(rect_n,img)
+                color_l=camCropAvg(rect_n,img)
                 rmg_l=color_l[2]-color_l[1]
-                if valid_cnt_l<VALID_COUNT_BORDER:
+                if abs(rmg_l-rmg_s)>RMG_DIFF_BORDER:
                     #normal found
-                    queue.put((c_small,int(valid_cnt_l)))
+                    respond(queue,c_small,False,rmg_l-rmg_s)
                     camLog(ptr,rect_n,rmg_s)
                 else:
                     #LARGE found
                     cam_found_modified_sign=True
-                    queue.put((3-c_small,int(valid_cnt_l))) #flipped (modified)
+                    respond(queue, 3-c_small, True, rmg_l-rmg_s) #flipped color
                     camLog(ptr,rect_l,rmg_s)
 
 camP = mp.Process(target=camProcess, args=(camQueue,))
@@ -312,17 +306,22 @@ camP.start()
 def closeCam():
     camQueue.put(CamInstruction("close",None))
     camP.join()
-def detectObjectColor(obj:Object, small_only:bool=False)->int:
+def detectObjectColor(obj:Object, small_only:bool=False, override:bool=None)->int:
+    global found_modified_sign, detected_first_sign
     '''Checks the color of the object using the RaspberryPi camera by communicating with the other core
     small_only: true if lidar didnt detect anything, can be small or nothing
     '''
     if obj.empty: return C_RED
     t0=time.time()
-    instr =CamInstruction("small" if small_only else "normal", obj)
+    instr =CamInstruction("small" if small_only else "normal", obj, not_modified_sign=((override is False) or found_modified_sign or not detected_first_sign), modified_sign=(override is True))
     camQueue.put(instr)
-    color,bgr=camQueue.get()
+    color,found_modified,log_data=camQueue.get()
+    if not found_modified_sign and found_modified:
+        log.debug("FOUND MODIFIED SIGN")
+        found_modified_sign=True
+    detected_first_sign=True
     #log.debug("topleft %s br %s imgtl %s imgbr %s"%(topLeft,botRight,imgTopLeft,imgBotRight))
-    log.debug(f"cam process returned color {color} (1:GREEN, 2:RED, 0:NONE) data {bgr}")
+    log.debug(f"cam process returned color {color} (1:GREEN, 2:RED, 0:NONE) data {log_data} found? {found_modified}")
     log.debug("dtime: %s"%(time.time()-t0))
     return color
 from LedAndKey import *
@@ -342,69 +341,6 @@ direction:int=1
 '''Stores the detected randomized direction during obstacle challenge. 
 1: robot turns right
 -1: robot turns left'''
-
-
-# TODO: Pixy camera currently not in use
-
-colorMatrixPrequel = [C_RED,C_GREEN]
-getColorCounter = 1
-
-
-CAM_WIDTH=315
-CAM_HEIGHT=207
-CAM_RIGHT_CUTOFF=CAM_WIDTH-0 #200
-CAM_LEFT_CUTOFF=50
-CAM_BOT_CUTOFF=CAM_HEIGHT-10
-CAM_TOP_CUTOFF=0
-def isInsideCamArea(x,y):
-    return True #currently camera cutoff is not in use
-    return x<CAM_RIGHT_CUTOFF and x>CAM_LEFT_CUTOFF and y>CAM_TOP_CUTOFF and y<CAM_BOT_CUTOFF
-
-defaultColor=C_RED
-''''''
-def checkColor()->int:
-    '''Checks the color of the closest obstacle outside the cutoff area using the Pixy camera.'''
-    global getColorCounter
-    global CAM_RIGHT_CUTOFF
-    global CAM_LEFT_CUTOFF
-    global pixyObjects
-    if lane==0:
-        CAM_LEFT_CUTOFF=90
-        CAM_RIGHT_CUTOFF=240
-    elif lane>0:
-        CAM_LEFT_CUTOFF=0
-        CAM_RIGHT_CUTOFF=CAM_WIDTH-150
-    elif lane<0:
-        CAM_LEFT_CUTOFF=150
-        CAM_RIGHT_CUTOFF=CAM_WIDTH
-    # getColorCounter += 1
-    # pixyObjects.append((110+random.randint(0,100),120+random.randint(-10,10),10+random.randint(-2,5),20+random.randint(-2,5),colorMatrixPrequel[(getColorCounter-1)%len(colorMatrixPrequel)],True))
-    # log.info("color: %s"%colorMatrixPrequel[(getColorCounter-1)%len(colorMatrixPrequel)])
-    # return colorMatrixPrequel[(getColorCounter-1)%len(colorMatrixPrequel)]
-    temp_pixyObjects=[]
-    blocks=pixy.BlockArray(4)
-    n=pixy.ccc_get_blocks(4,blocks)
-    log.info("detected %s blocks"%n)
-    if n==0:
-        log.error("No blocks detected!")
-        pixyObjects=temp_pixyObjects
-        return defaultColor
-    for b in range(n): temp_pixyObjects.append((blocks[b].m_x,blocks[b].m_y,blocks[b].m_width,blocks[b].m_height,blocks[b].m_signature,False))
-    for i in range(n):
-        b:pixy.Block=blocks[i]
-        log.debug("detected at %s %s, size %s %s with signature: %s"%(b.m_x,b.m_y,b.m_width,b.m_height,b.m_signature))
-        if isInsideCamArea(b.m_x,b.m_y):
-            log.info("i %s"%i)
-            detected=list(temp_pixyObjects[i])
-            detected[5]=True
-            temp_pixyObjects[i]=tuple(detected)
-            log.info("Final color %s"% "GREEN" if b.m_signature==C_GREEN else "RED")
-            pixyObjects=temp_pixyObjects
-            return b.m_signature
-    else:
-        log.error("All blocks outside cutoff range!! cutoffs: left %s right %s top %s bot %s"%(CAM_LEFT_CUTOFF,CAM_RIGHT_CUTOFF,CAM_TOP_CUTOFF,CAM_BOT_CUTOFF))
-        pixyObjects=temp_pixyObjects
-        return defaultColor
 
 
 wIntegral=0
@@ -908,10 +844,10 @@ def logLidar():
     lidarLogJSON["T"]=time.time()
     lidarLogJSON["DOI"]=lidarDOI
     lidarLogJSON["Rect"]=lidarRects
-    lidarLogJSON["cutoffLeft"]=CAM_LEFT_CUTOFF
-    lidarLogJSON["cutoffRight"]=CAM_RIGHT_CUTOFF
-    lidarLogJSON["cutoffTop"]=CAM_TOP_CUTOFF
-    lidarLogJSON["cutoffBot"]=CAM_BOT_CUTOFF
+    lidarLogJSON["cutoffLeft"]=0
+    lidarLogJSON["cutoffRight"]=0
+    lidarLogJSON["cutoffTop"]=0
+    lidarLogJSON["cutoffBot"]=0
     lidarLogJSON["pixyObjects"]=pixyObjects
     lidarLogJSON["labels"] = labels
     lidarRects=[]
@@ -1942,9 +1878,27 @@ def findFirstObsInNextSection(has_parking=False):
     return signColumn,signRow
 
 found_modified_sign=False
+detected_first_sign=False
+def detectMockSigns(row:int, override:bool=False)->tuple[int,int,Object]:
+    leftObj=mockObject((40,100+row*50),5)
+    rightObj=mockObject((60,100),5)
+    left_c=detectObjectColor(leftObj,small_only=True)
+    right_c=detectObjectColor(rightObj,small_only=True)
+    signColor=-1
+    signColumn=0
+    signObj=None
+    if left_c!=C_NONE:
+        signObj=leftObj
+        signColor=left_c
+        signColumn=-1
+    elif right_c!=C_NONE:
+        signObj=rightObj
+        signColor=right_c
+        signColumn=1
 
+    return signColor,signColumn
 def obstacleChallengeRun(skip_initloop=False):
-    global direction, startTime, parkPos, parkSide, rightLaneOffset, leftLaneOffset, lane, trafficSignMatrix, section, defaultSpeed, defaultTurnSpeed, targetLeftWallDist, in_initloop
+    global direction, startTime, parkPos, parkSide, rightLaneOffset, leftLaneOffset, lane, trafficSignMatrix, section, defaultSpeed, defaultTurnSpeed, targetLeftWallDist, in_initloop,detected_first_sign,found_modified_sign
     log.info("Obstacle challenge run started")
     if not skip_initloop: initLoop(open=False)
 
@@ -2032,30 +1986,33 @@ def obstacleChallengeRun(skip_initloop=False):
         log.section = section
         
         signColumn, signRow=findFirstObsInNextSection()
-        if signRow==0 or signRow==2: #SURP #similar behavior
+        if signRow==0:
             turnCorner(target=TURNTARGET_INNER_OBS if (signColumn*direction==1) else TURNTARGET_OUTER_OBS, detection_careful=True)
-            if signRow==2: pass #check first row for modified sign, set signColor, signColumn, if not found make it so switchlane goes straight (same lane)
-            else:
-                signObj=findNearestObjectAbs((20,80),(80,120))
-                sx,sy=signObj.toAbsolute().center
-                signColor=detectObjectColor(signObj)
-                signColumn=-1 if sx<50 else 1
-            
+            signObj=findNearestObjectAbs((20,80),(80,120))
+            sx,sy=signObj.toAbsolute().center
+            signColor=detectObjectColor(signObj)
+            signColumn=-1 if sx<50 else 1
             trafficSignMatrix[section%4][signRow]=signColumn*signColor #store
             # setTempo(defaultSpeed)
             switchLane(calcLaneFromObs(signColumn, signColor), forceWallDir=FORCE_OUTSIDE_WALL)
             waitLidarBehind(100,decreasing=False)
             signObj = findNearestObjectAbs((20,180),(80,220),back=True, overrideAbsX=targetLeftWallDist) #first check detection
-            if not signObj.empty: #there is an obstacle in row 3
-                #stop()
-                #signObj = findNearestObjectAbs((20,180),(80,220),back=True, outer=(lane*direction<0)) #after stop check
-                sx, sy = signObj.toAbsolute().center
-                log.debug(f"sx {sx} sy {sy}")
-                signColor=detectObjectColor(signObj)
-                signColumn = -1 if sx < 50 else 1
+            mock_detected=False
+            if signObj.empty and not found_modified_sign:
+                color,column=detectMockSigns(2)
+                if color!=C_NONE:
+                    signColor=color
+                    signColumn=column
+                    mock_detected=True
+            if not signObj.empty or mock_detected: #there is an obstacle in row 3 (or detected a small one)
+                if not mock_detected:
+                    signColor=detectObjectColor(signObj)
+                    sx, sy = signObj.toAbsolute().center
+                    signColumn = -1 if sx < 50 else 1
                 signRow = 2
                 
-                log.debug(f"found obstacle: row {signRow}, column {signColumn}")
+                
+                log.debug(f"found obstacle: row {signRow}, column {signColumn} mocked? {mock_detected}")
                 trafficSignMatrix[section%4][signRow] = signColor * signColumn
                 targetLane=calcLaneFromObs(signColumn, signColor)
                 if copysign(1,lane)==copysign(1,targetLane) and abs(lane)>=abs(targetLane): #if already in correct lane dont move closer to the middle
@@ -2070,7 +2027,7 @@ def obstacleChallengeRun(skip_initloop=False):
                 setTempo(defaultSpeed)
                 waitLidarBehind(130)
                 correctWallDist()
-        elif signRow==1: #SURP , but no changes
+        elif signRow==1 or (signRow==2 and (found_modified_sign or not detected_first_sign)): #SURP , but no changes
             turn_careful= lane==LANE_RIGHT*direction and signRow==1
             turnCorner(target=TURNTARGET_INNER_OBS if (signColumn*direction==1) else TURNTARGET_OUTER_OBS, detection_careful=False, profile=TURNCORNER_PROFILE_CAREFUL if turn_careful else TURNCORNER_PROFILE_DETECTION) #optimized turncorner
             #take picture from here
@@ -2085,8 +2042,40 @@ def obstacleChallengeRun(skip_initloop=False):
             newLane=calcLaneFromObs(signColumn, signColor)
             setTempo(defaultSpeed)
             switchLane(newLane,start_slow=turn_careful)
+        elif signRow==2 and detected_first_sign and not found_modified_sign: #possible undetected first obs, not first, not detected
+            turn_careful= lane==LANE_RIGHT*direction and signRow==1
+            turnCorner(target=TURNTARGET_INNER_OBS if (signColumn*direction==1) else TURNTARGET_OUTER_OBS,detection_careful=True)
+            color,column=detectMockSigns(0)
+            if color!=C_NONE:
+                signColor=color
+                signColumn=column
+                #avoid if found
+                switchLane(calcLaneFromObs(signColumn,signColor),FORCE_OUTSIDE_WALL,blind_cm=10)
+            #exact behaviour as if third sign was detected without surp rule
+            waitLidarBehind(125,decreasing=False)
+            signObj=findNearestObjectAbs((20,130), (80, 225))
+            sx,sy=signObj.toAbsolute().center
+            signColumn=-1 if sx<50 else 1
+            signColor=detectObjectColor(signObj)
+            trafficSignMatrix[section%4][signRow]=signColumn*signColor #store
+            newLane=calcLaneFromObs(signColumn, signColor)
+            setTempo(defaultSpeed)
+            switchLane(newLane,start_slow=turn_careful)
         elif signRow==-1: #SURP #check everything...
-            pass
+            turnCorner(TURNTARGET_INNER_OBS,detection_careful=True)
+            signColor,signColumn=detectMockSigns(0)
+            signRow=0
+            if color==C_NONE:
+                signColor,signColumn=detectMockSigns(1)
+                signRow=1
+            if color==C_NONE:
+                waitLidarBehind(125,decreasing=False)
+                signColor,signColumn=detectMockSigns(2)
+                signRow=2
+            trafficSignMatrix[section%4][signRow]=signColumn*signColor
+            switchLane(calcLaneFromObs(column,color),(FORCE_OUTSIDE_WALL if signRow<2 else None),blind_cm=10)
+            
+            
     ##EARLY DETECT
         
     go(0)
@@ -2101,7 +2090,7 @@ def obstacleChallengeRun(skip_initloop=False):
         signObj=findNearestObjectAbs((30,80),(70,120))
         sx,sy=signObj.toAbsolute().center
         signColumn=-1 if sx<50 else 1
-        signColor=detectObjectColor(signObj)
+        signColor=detectObjectColor(signObj, override=(True if not found_modified_sign else None))
         trafficSignMatrix[section%4][signRow]=signColumn*signColor #store
         switchLane(turnTargetToLane(getFirstTurnTarget(section)), forceWallDir=FORCE_OUTSIDE_WALL)
         log.debug(f"early detect ischangelane: {isChangelane(section)}")
@@ -2120,7 +2109,7 @@ def obstacleChallengeRun(skip_initloop=False):
         signObj=findNearestObjectAbs((30,130), (70, 225))
         sx,sy=signObj.toAbsolute().center
         signColumn=-1 if sx<50 else 1
-        signColor=detectObjectColor(signObj)
+        signColor=detectObjectColor(signObj, override=(True if not found_modified_sign else None)) #is the last possible modified sign
         trafficSignMatrix[section%4][signRow]=signColumn*signColor #store
         setTempo(defaultSpeed)
         switchLane(calcLaneFromObs(signColumn, signColor), forceWallDir=FORCE_INSIDE_WALL, blind_cm=15)
@@ -2129,6 +2118,21 @@ def obstacleChallengeRun(skip_initloop=False):
         turnCorner(target=TURNTARGET_INNER_OBS, detection_careful=False, profile=TURNCORNER_PROFILE_CAREFUL if turn_careful else TURNCORNER_PROFILE_DETECTION) #optimized turncorner
         waitLidarBehind(110,decreasing=False)
         switchLane(LANE_RIGHT*direction,forceWallDir=FORCE_INSIDE_WALL,blind_cm=15) #switch to inner
+    elif not found_modified_sign and (trafficSignMatrix[section%4][2]!=0 or signRow==-1):
+        #the modified sign IS here!
+        turnCorner(TURNTARGET_INNER_OBS,detection_careful=True)
+        signColor,signColumn=detectMockSigns(0)
+        if signColor==C_NONE:
+            signColor,signColumn=detectMockSigns(1, override=True) #there is a chance we already detected this, but then we already messed up^
+        switchLane(calcLaneFromObs(signColumn,signColor),FORCE_OUTSIDE_WALL)
+        
+        if isChangelane(section%4): #first and last traffic sign of section are of different colors
+            waitLidarBehind(106,decreasing=False)
+            switchLane(getLastObjLane(section), forceWallDir=FORCE_INSIDE_WALL,blind_cm=15) #always in parking section
+        else:
+            setTempo(fastSpeed)
+            waitLidarBehind(100, decreasing=False)
+            correctWallDist() #Inner wall
     else:
         optimizedFrom=4
     ##OPTIMIZED

@@ -1,6 +1,9 @@
 # Introduction
 We are the StormsNGR team from Hungary, and we are competing in the 2026 WRO Future Engineers category. This is our third year after two very successful years of competition. You can find our documentation from 2024 [here](https://github.com/MoCsabi/WRO2024-FE-StormsNGR) (🥇) and from 2025 [here](https://github.com/MoCsabi/WRO2025-FE-StormsNGR) (🥉). We will be updating this repository with our progress, which will be documented in our new [Engineering Journal](/Engineering%20Journal.md).
 
+# State of the repository
+The content of the repository is subject to change, as we are busy finishing up the documentation alongside implementing the new surprise challenge. For this reason we decided to use `git branches`. We have two branches: `main`, where we continue to finish up the documentation for the world championship without the surprise rule and `surprise-ch` where we focus on implementing and documenting the new surprise challenge. After we are done with the documentation it will be merged into `surprise-ch`, making it the most complete branch for scoring, but we will also keep `main` for a anyone interested in our base solution without the surprise rule.
+
 ## The team
 >Team members
 - **Csaba Molnár** from [Budapest University of Technology and Economics](https://www.bme.hu/en) Faculty of Electrical Engineering and Informatics

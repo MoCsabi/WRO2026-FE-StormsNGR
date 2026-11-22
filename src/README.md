@@ -311,7 +311,7 @@ We mainly refer to these lanes relative to the driving direction (left, right...
 Our goal was to make only a handful of possible driving scenarios on the straightforward and corner sections, and make them completely independent of each other. This vastly reduces the different cases we have to test.
 #### Leaving the parking space
 Start of the round the robot has to leave the parking space. This is a very precise operation so to eliminate slippage the robot moves at a **very** slow speed. Thankfully the robot can leave the parking space in one continuous arc. However, depending on the traffic sign in front of the robot and the driving direction there are still 4 scenarios.  If the driving direction is counter-clockwise, the robot first arcs out so the traffic sign on the third row can be detected. Then the obstacle is avoided according to its color:
-![scenarios showing parking out with driving direction counter-closkwise](park-right.png)
+![scenarios showing parking out with driving direction counter-clockwise](park-right.png)
 (If there is no traffic sign we treat it as if there were a red traffic sign)
 
 If the driving direction is clockwise, then the robot will have to avoid the traffic sign on the middle row *or* the one on the last row. The robot moves into a position where it can detect the color of potential traffic signs on the second *and* third row. After this it avoids it according to its color:
@@ -385,6 +385,8 @@ Although the robot is able to complete these turns in one arc, sometimes previou
 ![Turn correction illustrated](corner_corr.png)
 
 This manouver is very time-intensive, so we did our best to eliminate it. The issue is when the robot has to complete a switchlane int he straight section, that causes it to finish a little later than it otherwise would, making the upcoming tight corner turn impossible (see the image above). We avoid this by calculating ahead. If the robot sees that a tight corner is coming up followed by a straight section where a switchlane will be necessary it knows it won't be able to finish it in time, making the following turncorner risky. In this case the robot "cheats" a bit with the first corner turn, finishing it a bit sooner or a bit later (not at 90°) to make the following switchlane easier to complete.
+![image showing example of optimization](optim_turns.png)  
+Illustration showing an example of the optimized behavior (green) compared to the basic (black).
 
 We only have to do a switchlane if there are two different colored traffic signs in the section. Even though there could be two of signs of the same color we optimize our path to turn in to the lane which satisfies both signs, as described in the framework documentation under `getFirstTurnTarget()`, eliminating the need for a mid-section switchlane in this case. If we do need to switch lanes we switch to the optimal lane calculated by `calcLaneFromObs()`, finishing the sector.
 

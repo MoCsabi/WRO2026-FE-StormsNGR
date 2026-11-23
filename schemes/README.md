@@ -1,4 +1,4 @@
-# Mobility and Mechanical Design, Power and Sensor Architecture0
+# Mobility and Mechanical Design, Power and Sensor Architecture
 
 The robot is made up of a lot of different sensors, motors and two processing units, the ESP microcontroller and a Raspberry Pi. The car uses ackermann steering geometry and one DC motor through a motor controller with a differential gearbox we designed and printed from scratch. We had to create a lot of custom 3D printed components and even a custom interconnect panel to help with complicated wiring. The power to the robot is supplied by a 11.1V lithium battery and is later converted to 5V by a step-down module.
 
@@ -76,6 +76,7 @@ We have a long list of calibration procedures and tests, some having to be done 
 - The LiDAR sensor's forward angle also has to be calibrated. This is because it's not perfectly mounted, the angle the sensor refers to as 0° is in reality something like 1-2°. This is combatted via a constant, which has to be recalibrated after major reassemblies.
 - The IMU sensor has to be standing still when powering on the robot to ensure proper built-in calibration. There is also the static turning angle error which is combatted by a constant multiplier, this only has to be calibrated once per sensor we found.
 - We also have to calibrate the camera's positioning relative to the LiDAR, as mapping the object found by the LiDAR to the camera space is critical for the obstacle challenge. This is achieved with a number of constants, relating to the position and rotation of the camera relative to the LiDAR. This only needs recalibrating during major reassemblies or restructurings.
+- The Tf-Luna sensor can flex a bit due to the way it's installed so we have to make sure it's not facing too down and avoid it detecting the mat, nor too up above the walls.
 
 Before competitions we make sure to run through this list, even the ones normally only necessary after major changes.
 ## Connections
@@ -375,7 +376,7 @@ Then we repurposed the top deck's rear sawed off part as the third deck.
 
 These decks can be mounted on each other with large spacers. The steering mechanism we used from the Ackermann Intelligent Car also plays a role in the structural integrity of the robot.
 
-On the bottom deck we have the aforementioned steering mechanism, differential gearbox, the motor and the battery. How the differential gear-system is made up is detailed in the [Drive](#drive) and [The design process of 3D printed parts](#the-design-process-of-3D-printed-parts) sections. The motor has to be secured down, for this we used the original motor mounting bracket. The battery's position is not important as long as its secured down. This decks intentionally contains most of the heaviest components (the motor and the battery) in order to keep the center of gravity low.
+On the bottom deck we have the aforementioned steering mechanism, differential gearbox, the motor and the battery. How the differential gear-system is made up is detailed in the [Drive](#drive) and [The design process of 3D printed parts](#the-design-process-of-3D-printed-parts) sections. The motor has to be secured down, for this we used the original motor mounting bracket. The battery's position is not important as long as its secured down. This decks intentionally contains most of the heaviest components (the motor and the battery) in order to keep the center of gravity low. We also installed the Tf-Luna distance sensor here using a 3D printed mounting bracket. The reason it' installed here is to avoid it interfering with the LiDAR. 
 
 ![bottom deck of the robot with all components](bottom_deck_full.png)
 

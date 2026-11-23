@@ -122,7 +122,9 @@ All of these can also be found in the form of an excel spreadsheet in the [pinou
 
 ![PCB interconnect wiring](PCB_schematic.png)
 
-Some extra rules had to be employed in order to ensure the PCB working properly. First, the GND and +3V3 as well as +5V wires were thickened, since they deliver much more current than everything else. Another big factor was the 5V wiring itself: the ESP could either get its 5 volt power through the built in pin or USB-C port, but not both without that causing issues (for example, it managed to break the USB port of two of our ESP-s). Because of this, a jumper bridge has been added, if the `ESP32 5V SWITCH` pins are not connected, the ESP must be supplied through the USB port, otherwise power delivery is done through the dedicated pin.
+The PCB has been changed since last year due to a shift in the power structure.  
+Previously, power could either come from USB or the 5V pin of the ESP32. While this was sufficient, it included a critical flaw: the 5V pin is either an input or output depending on if USB is connected or not, and when supplied with power in output mode, it can ruin the entire microcontroller. The power was toggled by using a jumper cable as a switch to toggle the power source. If we forgot to properly toggle, the entire ESP32 became kaput. Therefore, we decided to choose only one mode of providing power, namely the 5V pin in input mode. The jumper bridge has been removed, replaced with a simple copper trace.  
+Another change is the network switch. ESP32s can be programmed remotely through WiFi, meaning we didn't need to disassemble the car every time the microcontroller needed reprogramming. To ensure transparency about when outside networking is enabled, we added a switch to the PCB to toggles a pin's logic value, to tell the ESP32 wether it can or cannot connect to the internet. However do to time constraints, this feature is yet to be implemented and currently we still do the switching manually.
 
 The PCB project, along with its BOM can be found in the [schemes/wro_nyak](/schemes/wro-nyak/) subfolder.
 
@@ -282,7 +284,7 @@ Designing and printing out different parts of the robot was one of our biggest t
   >-  **To have a size similar to the previous so it would be easier to implement into the assembly.**
   >-  **To have enough tolerances for 3D printing, but at the same time to minimize the backlash between the various gears and - of course - to achieve maximum efficiency.**
 
-  In order to achieve this, we decided to use two helical gears, with one replacing the gear part of the old differential, while not changing the rest. The helical gears allow for better contact between the gears, and therefore a **higher efficiency when the car goes forwards.** Size wise both gears are the same size now (due to the 1:1 gear ratio), their diameters are about equal to the bigger gear in the old differential, so the main axle could stay almost identical to before, with only the motor's position changing slightly.
+  In order to achieve this, we decided to use two helical gears, with one replacing the gear part of the old differential, while not changing the rest. The helical gears allow for better contact between the gears, and therefore a **higher efficiency when the car goes forwards.** The gear ratio was also set to 3:2, replacing the previous 1:1 design, so that we could have the perfect balance between speed and power.
 
   ![differential gear](differential_gear.png)
 
@@ -291,6 +293,7 @@ Designing and printing out different parts of the robot was one of our biggest t
   With a new differential we also required a new frame for said differential. The frame is what holds differential in the air so that it doesn't touch anything, and **has embedded bearings to reduce the friction** between the frame and the axles. We used bearings last year as well but this year we made a few improvements in that area.
 
   >- **Made the slots larger that can accompany larger bearings that provide more support and enables the usage of fitting rings on the axles.**
+  >. **Added another bearing to the right side of the house for additional support for the right axle.**
   >- **Split the model into two and added walls for the slots to make the bearings and the fitting rings unable to move.**
 
   These changes made the frame a lot more secure, since we had problems with the bearings and axles shifting previously.
@@ -342,7 +345,8 @@ Last year, for aesthetics we put a shovel in the front of the car, but this year
 
 ![bumper mount](Bumper_mount.png)
 
-This mount attaches securely to front of the robot, meanwhile allowing us to use a bumper made from a softer material, like **TPU.**
+This mount attaches securely to front of the robot, meanwhile allowing us to use a bumper made from a softer material, like **TPU.**  
+It is also not only the support mechanism for the bumper, but the Tf-Luna distance sensor as well, allowing us to mount the sensor at the very end of the car and at the ideal height, where it can perfectly see while also not interfering with our 2D LiDAR. 
 
 
 ![tpu bumper](glove.png)

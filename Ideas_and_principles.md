@@ -21,4 +21,4 @@ As our third year competing in Future Engineers, this was easily the hardest, mo
 - A good framework is extremely worth it. This is something we carried on from our past RoboMission experiences. A solid framework can make solving the challenges much easier and trivializes implementing next year's small rule change
 
 ## Conclusion
-We believe these principles are well reflected in our various solutions to challenges that arose during the preparations for the national championship. We truly hope these can be helpful for someone.
+We believe these principles are well reflected in our various solutions to challenges that arose during the development of the robot over the 3 years. We truly hope this can be halpful for someone

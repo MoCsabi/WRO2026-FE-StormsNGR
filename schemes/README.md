@@ -1,5 +1,4 @@
-# Mobility and Mechanical Design, Power and Sensor Architecture
->TODO update images
+# Mobility and Mechanical Design, Power and Sensor Architecture0
 
 The robot is made up of a lot of different sensors, motors and two processing units, the ESP microcontroller and a Raspberry Pi. The car uses ackermann steering geometry and one DC motor through a motor controller with a differential gearbox we designed and printed from scratch. We had to create a lot of custom 3D printed components and even a custom interconnect panel to help with complicated wiring. The power to the robot is supplied by a 11.1V lithium battery and is later converted to 5V by a step-down module.
 
@@ -98,7 +97,6 @@ The actual communication between the components is detailed in the [software doc
 ## Wiring diagrams
 ![full wiring diagram](wiring_diagram_full.jpg)  
 The complete wiring diagram of the robot, including the Raspberry Pi, the ESP, the two motors and the sensors.
-> TODO UPDATE
 
 The diagrams below serve more as a cabling guide, with the colored squares representing the cable colors on the robot.
 ### ESP microcontroller (NodeMCU) pinout with connections labeled:
@@ -124,7 +122,7 @@ All of these can also be found in the form of an excel spreadsheet in the [pinou
 
 The PCB has been changed since last year due to a shift in the power structure.  
 Previously, power could either come from USB or the 5V pin of the ESP32. While this was sufficient, it included a critical flaw: the 5V pin is either an input or output depending on if USB is connected or not, and when supplied with power in output mode, it can ruin the entire microcontroller. The power was toggled by using a jumper cable as a switch to toggle the power source. If we forgot to properly toggle, the entire ESP32 became kaput. Therefore, we decided to choose only one mode of providing power, namely the 5V pin in input mode. The jumper bridge has been removed, replaced with a simple copper trace.  
-Another change is the network switch. ESP32s can be programmed remotely through WiFi, meaning we didn't need to disassemble the car every time the microcontroller needed reprogramming. To ensure transparency about when outside networking is enabled, we added a switch to the PCB to toggles a pin's logic value, to tell the ESP32 wether it can or cannot connect to the internet. However do to time constraints, this feature is yet to be implemented and currently we still do the switching manually.
+Another change is the network switch. ESP32s can be programmed remotely through WiFi, meaning we didn't need to disassemble the car every time the microcontroller needed reprogramming. To ensure transparency about when outside networking is enabled, we added a switch to the PCB to toggles a pin's logic value, to tell the ESP32 wether it can or cannot connect to the internet. 
 
 The PCB project, along with its BOM can be found in the [schemes/wro_nyak](/schemes/wro-nyak/) subfolder.
 

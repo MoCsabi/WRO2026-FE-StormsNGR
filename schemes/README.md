@@ -1,5 +1,4 @@
 # Mobility and Mechanical Design, Power and Sensor Architecture
->TODO update images
 
 The robot is made up of a lot of different sensors, motors and two processing units, the ESP microcontroller and a Raspberry Pi. The car uses ackermann steering geometry and one DC motor through a motor controller with a differential gearbox we designed and printed from scratch. We had to create a lot of custom 3D printed components and even a custom interconnect panel to help with complicated wiring. The power to the robot is supplied by a 11.1V lithium battery and is later converted to 5V by a step-down module.
 
@@ -77,6 +76,7 @@ We have a long list of calibration procedures and tests, some having to be done 
 - The LiDAR sensor's forward angle also has to be calibrated. This is because it's not perfectly mounted, the angle the sensor refers to as 0° is in reality something like 1-2°. This is combatted via a constant, which has to be recalibrated after major reassemblies.
 - The IMU sensor has to be standing still when powering on the robot to ensure proper built-in calibration. There is also the static turning angle error which is combatted by a constant multiplier, this only has to be calibrated once per sensor we found.
 - We also have to calibrate the camera's positioning relative to the LiDAR, as mapping the object found by the LiDAR to the camera space is critical for the obstacle challenge. This is achieved with a number of constants, relating to the position and rotation of the camera relative to the LiDAR. This only needs recalibrating during major reassemblies or restructurings.
+- The Tf-Luna sensor can flex a bit due to the way it's installed so we have to make sure it's not facing too down and avoid it detecting the mat, nor too up above the walls.
 
 Before competitions we make sure to run through this list, even the ones normally only necessary after major changes.
 ## Connections
@@ -98,7 +98,6 @@ The actual communication between the components is detailed in the [software doc
 ## Wiring diagrams
 ![full wiring diagram](wiring_diagram_full.jpg)  
 The complete wiring diagram of the robot, including the Raspberry Pi, the ESP, the two motors and the sensors.
-> TODO UPDATE
 
 The diagrams below serve more as a cabling guide, with the colored squares representing the cable colors on the robot.
 ### ESP microcontroller (NodeMCU) pinout with connections labeled:
@@ -122,7 +121,9 @@ All of these can also be found in the form of an excel spreadsheet in the [pinou
 
 ![PCB interconnect wiring](PCB_schematic.png)
 
-Some extra rules had to be employed in order to ensure the PCB working properly. First, the GND and +3V3 as well as +5V wires were thickened, since they deliver much more current than everything else. Another big factor was the 5V wiring itself: the ESP could either get its 5 volt power through the built in pin or USB-C port, but not both without that causing issues (for example, it managed to break the USB port of two of our ESP-s). Because of this, a jumper bridge has been added, if the `ESP32 5V SWITCH` pins are not connected, the ESP must be supplied through the USB port, otherwise power delivery is done through the dedicated pin.
+The PCB has been changed since last year due to a shift in the power structure.  
+Previously, power could either come from USB or the 5V pin of the ESP32. While this was sufficient, it included a critical flaw: the 5V pin is either an input or output depending on if USB is connected or not, and when supplied with power in output mode, it can ruin the entire microcontroller. The power was toggled by using a jumper cable as a switch to toggle the power source. If we forgot to properly toggle, the entire ESP32 became kaput. Therefore, we decided to choose only one mode of providing power, namely the 5V pin in input mode. The jumper bridge has been removed, replaced with a simple copper trace.  
+Another change is the network switch. ESP32s can be programmed remotely through WiFi, meaning we didn't need to disassemble the car every time the microcontroller needed reprogramming. To ensure transparency about when outside networking is enabled, we added a switch to the PCB to toggles a pin's logic value, to tell the ESP32 wether it can or cannot connect to the internet. 
 
 The PCB project, along with its BOM can be found in the [schemes/wro_nyak](/schemes/wro-nyak/) subfolder.
 
@@ -282,7 +283,7 @@ Designing and printing out different parts of the robot was one of our biggest t
   >-  **To have a size similar to the previous so it would be easier to implement into the assembly.**
   >-  **To have enough tolerances for 3D printing, but at the same time to minimize the backlash between the various gears and - of course - to achieve maximum efficiency.**
 
-  In order to achieve this, we decided to use two helical gears, with one replacing the gear part of the old differential, while not changing the rest. The helical gears allow for better contact between the gears, and therefore a **higher efficiency when the car goes forwards.** Size wise both gears are the same size now (due to the 1:1 gear ratio), their diameters are about equal to the bigger gear in the old differential, so the main axle could stay almost identical to before, with only the motor's position changing slightly.
+  In order to achieve this, we decided to use two helical gears, with one replacing the gear part of the old differential, while not changing the rest. The helical gears allow for better contact between the gears, and therefore a **higher efficiency when the car goes forwards.** The gear ratio was also set to 3:2, replacing the previous 1:1 design, so that we could have the perfect balance between speed and power.
 
   ![differential gear](differential_gear.png)
 
@@ -291,6 +292,7 @@ Designing and printing out different parts of the robot was one of our biggest t
   With a new differential we also required a new frame for said differential. The frame is what holds differential in the air so that it doesn't touch anything, and **has embedded bearings to reduce the friction** between the frame and the axles. We used bearings last year as well but this year we made a few improvements in that area.
 
   >- **Made the slots larger that can accompany larger bearings that provide more support and enables the usage of fitting rings on the axles.**
+  >. **Added another bearing to the right side of the house for additional support for the right axle.**
   >- **Split the model into two and added walls for the slots to make the bearings and the fitting rings unable to move.**
 
   These changes made the frame a lot more secure, since we had problems with the bearings and axles shifting previously.
@@ -342,7 +344,8 @@ Last year, for aesthetics we put a shovel in the front of the car, but this year
 
 ![bumper mount](Bumper_mount.png)
 
-This mount attaches securely to front of the robot, meanwhile allowing us to use a bumper made from a softer material, like **TPU.**
+This mount attaches securely to front of the robot, meanwhile allowing us to use a bumper made from a softer material, like **TPU.**  
+It is also not only the support mechanism for the bumper, but the Tf-Luna distance sensor as well, allowing us to mount the sensor at the very end of the car and at the ideal height, where it can perfectly see while also not interfering with our 2D LiDAR. 
 
 
 ![tpu bumper](glove.png)
@@ -373,7 +376,7 @@ Then we repurposed the top deck's rear sawed off part as the third deck.
 
 These decks can be mounted on each other with large spacers. The steering mechanism we used from the Ackermann Intelligent Car also plays a role in the structural integrity of the robot.
 
-On the bottom deck we have the aforementioned steering mechanism, differential gearbox, the motor and the battery. How the differential gear-system is made up is detailed in the [Drive](#drive) and [The design process of 3D printed parts](#the-design-process-of-3D-printed-parts) sections. The motor has to be secured down, for this we used the original motor mounting bracket. The battery's position is not important as long as its secured down. This decks intentionally contains most of the heaviest components (the motor and the battery) in order to keep the center of gravity low.
+On the bottom deck we have the aforementioned steering mechanism, differential gearbox, the motor and the battery. How the differential gear-system is made up is detailed in the [Drive](#drive) and [The design process of 3D printed parts](#the-design-process-of-3D-printed-parts) sections. The motor has to be secured down, for this we used the original motor mounting bracket. The battery's position is not important as long as its secured down. This decks intentionally contains most of the heaviest components (the motor and the battery) in order to keep the center of gravity low. We also installed the Tf-Luna distance sensor here using a 3D printed mounting bracket. The reason it' installed here is to avoid it interfering with the LiDAR. 
 
 ![bottom deck of the robot with all components](bottom_deck_full.png)
 

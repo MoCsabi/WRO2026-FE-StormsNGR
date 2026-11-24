@@ -416,6 +416,36 @@ However if the sign requires the robot to move in the inner lane we can't comple
 ![illustration showing said maneuver](parking-switchlane.png)
  After this we assume the unified parking position and complete parallel parking regularly.
 
+## Surprise challenge
+The solution of the surprise cahllenge came down to 2 main obstacles:
+- Detecting the modified sign
+- Modifying the strategy
+### Detecting the modified sign
+We were sad to see that the surprise challenge was added to the already complicated obstacle challenge instead of the more low-stakes open challenge, but nonetheless we persevered. 
+
+In order to detect the modified sign we had to differentiate a small, regular and large signs. For this we opted to use the LiDAR sensor and the camera. Here we noticed a problem: The LiDAR couldn't detect the small sign reliably. On one hand this meant we will have to modify the strategy, and also even if we detected a sign it could be a small one. We implemented 2 new detection functions:
+- Detect a known obstacle's height
+- Detect an unknown obstacle and it's color, using only the camera 
+
+First, detecting a known obstacle's height. A known object means it was detected by the LiDAR, though it could still be a small modified sign. 
+First we break the sign into 3 5x5x5 squares that would make up the large (15 cm) modified sign. Using our existing algorithm we can translate points in space to points on the camera's view. We calculate the points in space, translate them to camera x/y, giving us the 3 bounding rectangles: 
+![marked sign](sign_marked.png)
+
+We then determine the color of the lowest square using our existing algorithm, giving us the color of the sign. This square is always there, because we detected something, and we can get a perfectly fine read of it's color despite the smaller size. After this we have to determine whether the sign "continues" into the squares above. For this we look for changes in the average red-green factor. When calibrated well this proved to be fine enough, but we are also experimenting with filtering out black (wall) and white (mat) pixels, and checking how many pixels remain. This might be necessary because taking just the average loses a lot of information, and images where it's part black and part white could balance out, making them hard to distinguish from red/green signs.  
+We experimented quite a bit with different formulas, including utilizing other colorspaces: 
+![experiments](sign_science.png)
+
+Detecting an unknown small sign is easier. We know where the sign *could* be as absolute coordinates,  we just map those coordinates to the camera's view, enabling us to take the average of that. Since we are looking down the background is certainly white, making an empty image easy to distinguish based on the average white component. After deciding if there is a sign there we decide it's color using the existing algorithm.
+![sign not there](modified_small_not_there.png)
+Here the robot is detecting an unknown sign. Notice the higher blue value compared to the picture above.
+
+We keep detection logic entirely in the detection, returning the flipped color if modified sign is detected.
+### Modified strategy
+Since we can't reliably detect the small modified sign we have to treat every potential sign place as if there **was** a small sign there. We also avoid redundancy as much as possible. For this reason we utilize every bit of information avalilable, such as, the first sign can't be modified, after detecting the modified sign everything goes back to normal, and if there is only 1 sign left and the modified sign wasn't found it will certainly be it.
+![possible modified sign locations](possible_modified_locations.png) 
+The black minifigures show the possible modified sign locations, which the robot has to check.
+
+After the modified sign was found everything goes back to normal, the robot no longer cares about these locations.
 ## Software setup guide
 
 This document serves as a guide for installing the necessary software and setting up environments on the programming computer, [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/) and [NodeMCU-32S](https://docs.ai-thinker.com/_media/esp32/docs/nodemcu-32s_product_specification.pdf) device. We tried to be as precise as possible when describing the steps, however if we did miss something let us know and we will try our best to help solve any problems. You can contact us at csabi@molnarnet.hu (Csaba) or andrasgraff@gmail.com (András).

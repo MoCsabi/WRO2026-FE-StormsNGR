@@ -435,7 +435,7 @@ First we break the sign into 3 5x5x5 squares that would make up the large (15 cm
 
 We then determine the color of the lowest square using our existing algorithm, giving us the color of the sign. This square is always there, because we detected something, and we can get a perfectly fine read of it's color despite the smaller size. After this we have to determine whether the sign "continues" into the squares above. For this we look for changes in the average red-green factor. When calibrated well this proved to be fine enough, but we are also experimenting with filtering out black (wall) and white (mat) pixels, and checking how many pixels remain. This might be necessary because taking just the average loses a lot of information, and images where it's part black and part white could balance out, making them hard to distinguish from red/green signs.  
 We experimented quite a bit with different formulas, including utilizing other colorspaces: 
-![experiments](sign_science.png)
+![experiments](sign_small.png)
 
 Detecting an unknown small sign is easier. We know where the sign *could* be as absolute coordinates,  we just map those coordinates to the camera's view, enabling us to take the average of that. Since we are looking down the background is certainly white, making an empty image easy to distinguish based on the average white component. After deciding if there is a sign there we decide it's color using the existing algorithm.
 ![sign not there](modified_small_not_there.png)

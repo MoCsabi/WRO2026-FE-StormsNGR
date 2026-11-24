@@ -222,7 +222,7 @@ After some research, we ended up buying a **JX PDI-6208MG** servo, which gave us
 
 ![PCB](PCB.png)
 
-Last year, one of our main half changes in the robot's circuitry was making a custom pcb. It worked quite well, but there were some thing that we could improve on. First of all there was a small switch up between two pins, so we had to fix that first. Then we added a small switch that we could configure. As of now, it does nothing, we were thinking about making it a wifi switch for testing purposes, but we ended up not doing that. Finally, we also tinkered a bit with the ESP's power lines, so (hopefully) we won't any of them anymore.
+Last year, one of our main half changes in the robot's circuitry was making a custom pcb. It worked quite well, but there were some thing that we could improve on. First of all there was a small switch up between two pins, so we had to fix that first. Then we added a small switch that we could configure. Right now we use it to enable/disable the wifi on the ESP which is handy for turning off the wifi before the compeititon runs, signaling clearly we don't have wireless communication enabled. Finally, we also tinkered a bit with the ESP's power lines, so (hopefully) we won't melt any of them anymore.
 
 > ✅ Improving our custom PCB.  
 
